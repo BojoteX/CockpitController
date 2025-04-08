@@ -33,6 +33,35 @@ The **CockpitController Firmware** is a modular, efficient, and highly extensibl
 
 ---
 
+## 🧑‍💻 Requirements and Compilation
+
+### 📌 Requirements
+
+- **Arduino IDE 2.x**
+- **ESP32 by Espressif v3.1.3** (due to compatibility issues, v3.2 is not currently supported)
+- **Adafruit TinyUSB Library v3.4.4** (Note: Compatibility issue with ESP32 v3.2 resolved but not yet available via Arduino IDE)
+- **FastLED by Daniel Garcia** (required for the LockShoot indicator)
+
+### 🔨 Compilation Steps
+
+1. Install the **Arduino IDE 2.x** from the [official Arduino site](https://www.arduino.cc/en/software).
+2. In Arduino IDE, open **File → Preferences** and add the following URL to the **Additional Boards Manager URLs**:
+
+```
+https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+```
+
+3. Go to **Tools → Board → Boards Manager**, search for "ESP32", select and install version **3.1.3** of **ESP32 by Espressif**.
+4. Install required libraries via **Tools → Manage Libraries**:
+   - **Adafruit TinyUSB v3.4.4**
+   - **FastLED by Daniel Garcia**
+
+5. Select the board **"LOLIN S2 Mini"** from the menu **Tools → Board → ESP32 Arduino**.
+
+6. Open the `CockpitController.ino` file from this repository and click **Verify/Upload**.
+
+---
+
 ## 📦 Project Structure
 
 ```
@@ -96,4 +125,3 @@ Special thanks to:
 ---
 
 **Enjoy flying with your enhanced cockpit immersion! 🚀**
-
