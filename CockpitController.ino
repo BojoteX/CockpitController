@@ -13,16 +13,20 @@
 #define SERIAL_STARTUP_DELAY 3000      // Delay (ms) allowing Serial Monitor to connect
 
 #include <Wire.h>
+#include <stdarg.h>  // Required for va_list and related macros
 
 // -- Project Headers --
 #define DEFINE_MAPPINGS
 #include "src/HIDManager.h"
-#include "src/Globals.h"
 #include "CUtils/CUtils.h"
 #include "src/DCSBIOSBridge.h"
+#include "src/Globals.h"
 
 // Definitions for Panel Detection logic
 bool hasIR, hasLA, hasRA, hasCA, hasLockShoot, hasMasterARM, hasECM, hasBrain;
+
+// is DCS connected?
+bool dcsConnected = false; 
 
 // -- Panel Modules --
 #include "src/LeftAnnunciator.h"
@@ -54,13 +58,14 @@ void setup() {
   scanConnectedPanels();
 
   // Serial Initialization
-  Serial.begin(115200);
+  Serial.begin(250000); 
+
   unsigned long start = millis();
   while (!Serial && (millis() - start < SERIAL_STARTUP_DELAY)) delay(1);
 
-  Serial.println("\n=== Cockpit Brain Controller Initialization ===");
-  Serial.print("Selected mode: ");
-  Serial.println(isModeSelectorDCS() ? "DCS-BIOS" : "HID");
+  debugPrintln("\n=== Cockpit Brain Controller Initialization ===");
+  debugPrint("Selected mode: ");
+  debugPrintln(isModeSelectorDCS() ? "DCS-BIOS" : "HID");
 
   // Show PCA Panels we discovered
   printDiscoveredPanels();
@@ -74,19 +79,19 @@ void setup() {
   hasECM = true;
   hasMasterARM = true;
 
-  Serial.println("Initializing Panels....");
+  debugPrintln("Initializing Panels....");
   if (hasLA) LeftAnnunciator_init();
   if (hasRA) RightAnnunciator_init();
   if (hasIR) IRCool_init();
 
   // PCA9555 Expander Initialization
-  Serial.println("Initializing PCA9555 Inputs...");
+  debugPrintln("Initializing PCA9555 Inputs...");
   if (hasBrain) initPCA9555AsInput(0x26); //Assumes Brain controller connected
   if (hasECM) initPCA9555AsInput(0x22);
   if (hasMasterARM) initPCA9555AsInput(0x5B);
 
   // Initialize PCA9555 Cached Port States explicitly to OFF (active-low LEDs)
-  Serial.println("Initializing PCA9555 Cached Port States...");
+  debugPrintln("Initializing PCA9555 Cached Port States...");
   uint8_t pcaAddresses[] = {0x26, 0x22, 0x5B};
   for (int i = 0; i < sizeof(pcaAddresses); i++) {
     uint8_t addr = pcaAddresses[i];
@@ -102,7 +107,7 @@ void setup() {
   }
 
   // Initialize selected panels
-  Serial.println("Initializing PCA Panels...");
+  debugPrintln("Initializing PCA Panels...");
   if (hasECM) ECM_init();
   if (hasMasterARM) MasterARM_init();
   
@@ -118,21 +123,21 @@ void setup() {
   if (hasECM) activePanels[panelCount++] = "ECM";
   if (hasMasterARM) activePanels[panelCount++] = "ARM";
 
-  Serial.println("Initializing LEDs...");
+  debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
 
   // DCS-BIOS Bridge Initialization
-  Serial.println("Initializing DCS-BIOS Bridge...");
-  // DCSBIOSBridge_init();
+  debugPrintln("Initializing DCS-BIOS Bridge...");
+  DCSBIOSBridge_init();
 
   if (DEBUG) {
     enablePCA9555Logging(true);
     printLEDMenu();
     handleLEDSelection();
-    Serial.println("Exiting LED selection menu. Continuing execution...");
+    debugPrintln("Exiting LED selection menu. Continuing execution...");
   }
   
-  Serial.println("\nInitialization Complete.\n");
+  debugPrintln("\nInitialization Complete.\n");
 }
 
 // Arduino Loop Routine
@@ -155,5 +160,5 @@ void loop() {
   }
 
   // DCS-BIOS Bridge loop
-  // DCSBIOSBridge_loop();
+  DCSBIOSBridge_loop();
 }

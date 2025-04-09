@@ -91,7 +91,7 @@ void GN1640_clearAll() {
 }
 
 void GN1640_allOff() {
-  Serial.println("⚫ Turning ALL LEDs OFF (simultaneously)");
+  debugPrintln("⚫ Turning ALL LEDs OFF (simultaneously)");
   uint8_t used[8] = {0};
   for (uint16_t i = 0; i < panelLEDsCount; i++) {
     if (panelLEDs[i].deviceType != DEVICE_GN1640T) continue;
@@ -105,7 +105,7 @@ void GN1640_allOff() {
 }
 
 void GN1640_allOn() {
-  Serial.println("🔆 Turning ALL LEDs ON (simultaneously)");
+  debugPrintln("🔆 Turning ALL LEDs ON (simultaneously)");
   uint8_t buffer[8] = {0};
   for (uint16_t i = 0; i < panelLEDsCount; i++) {
     if (panelLEDs[i].deviceType != DEVICE_GN1640T) continue;
@@ -123,7 +123,7 @@ void GN1640_sweep() {
 }
 
 void GN1640_sweepPanel() {
-  Serial.println("🔍 Starting GN1640 panel sweep...");
+  debugPrintln("🔍 Starting GN1640 panel sweep...");
   for (uint16_t i = 0; i < panelLEDsCount; i++) {
     if (panelLEDs[i].deviceType != DEVICE_GN1640T) continue;
 
@@ -133,19 +133,19 @@ void GN1640_sweepPanel() {
 
     GN1640_write(col, (1 << row));
 
-    Serial.printf("🟢 LED ON: %s → GRID %d, SEG %d → addr=0x%02X, bit=%d\n",
+    debugPrintf("🟢 LED ON: %s → GRID %d, SEG %d → addr=0x%02X, bit=%d\n",
       panelLEDs[i].label, col, row, 0xC0 | col, row);
 
     delay(100);
   }
   GN1640_clearAll();
-  Serial.println("✅ Sweep complete.");
+  debugPrintln("✅ Sweep complete.");
 }
 
 void GN1640_testPattern() {
   GN1640_allOff();
   GN1640_allOn();
-  Serial.println("🔁 Test cycle complete. Waiting 5s...");
+  debugPrintln("🔁 Test cycle complete. Waiting 5s...");
 }
 
 // GN1640T Helper Implementation

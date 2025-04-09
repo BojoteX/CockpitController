@@ -4,8 +4,9 @@
 #include <Wire.h>
 #include <vector>
 #include "CUtils/CUtils.h"
-#include "src/Globals.h"
 #include "src/Mappings.h"
+#include "src/Globals.h"
+#include "src/debugPrint.h"
 
 #include <map>
 #include <array>
@@ -67,23 +68,23 @@ void scanConnectedPanels() {
 // Prints a formatted list of discovered devices
 void printDiscoveredPanels() {
   if (discoveredDevices.empty()) {
-    Serial.println("No I2C devices found.");
+    debugPrintln("No I2C devices found.");
     return;
   }
 
-  Serial.println("\n=== Discovered I2C Devices ===");
-  Serial.println("Address    | Device Description");
-  Serial.println("-----------|------------------");
+  debugPrintln("\n=== Discovered I2C Devices ===");
+  debugPrintln("Address    | Device Description");
+  debugPrintln("-----------|------------------");
 
   for (auto const& device : discoveredDevices) {
-    Serial.print("0x");
-    if (device.first < 0x10) Serial.print("0");
-    Serial.print(device.first, HEX);
+    debugPrint("0x");
+    if (device.first < 0x10) debugPrint("0");
+    debugPrint(device.first, HEX);
     int spaces = 11 - 4; // "0xNN" is 4 chars
-    for (int i = 0; i < spaces; i++) Serial.print(" ");
-    Serial.println(device.second);
+    for (int i = 0; i < spaces; i++) debugPrint(" ");
+    debugPrintln(device.second);
   }
-  Serial.println("============================\n");
+  debugPrintln("============================\n");
 }
 
 // *****************************************************
@@ -97,29 +98,29 @@ int displayedCount = 0;
 // LED selection menu
 void printLEDMenu() {
   displayedCount = 0;
-  Serial.println("\n--- LED Selection Menu ---\n");
+  debugPrintln("\n--- LED Selection Menu ---\n");
 
   int columns = 3;
   int colWidth = 25;
 
   for (int i = 0; i < panelLEDsCount; i++) {
-    Serial.print(displayedCount);
-    Serial.print(": ");
-    Serial.print(panelLEDs[i].label);
+    debugPrint(displayedCount);
+    debugPrint(": ");
+    debugPrint(panelLEDs[i].label);
 
     int len = strlen(panelLEDs[i].label);
-    for (int s = 0; s < colWidth - len; s++) Serial.print(" ");
+    for (int s = 0; s < colWidth - len; s++) debugPrint(" ");
 
     displayedIndexes[displayedCount++] = i;
 
     if ((i + 1) % columns == 0 || i == panelLEDsCount - 1)
-      Serial.println();
+      debugPrintln("");
   }
 }
 
 void handleLEDSelection() {
   while (true) {
-    Serial.println("Enter LED number to activate (or press Enter to exit):");
+    debugPrintln("Enter LED number to activate (or press Enter to exit):");
 
     while (!Serial.available());
     String input = Serial.readStringUntil('\n');
@@ -129,25 +130,25 @@ void handleLEDSelection() {
     int userSelection = input.toInt();
     if (userSelection >= 0 && userSelection < displayedCount) {
       int actualIndex = displayedIndexes[userSelection];
-      Serial.print("Activating LED: ");
-      Serial.println(panelLEDs[actualIndex].label);
+      debugPrint("Activating LED: ");
+      debugPrintln(panelLEDs[actualIndex].label);
 
       setLED(panelLEDs[actualIndex].label, true, 100);
       delay(5000);
       setLED(panelLEDs[actualIndex].label, false, 0);
 
-      Serial.print("Deactivated LED: ");
-      Serial.println(panelLEDs[actualIndex].label);
+      debugPrint("Deactivated LED: ");
+      debugPrintln(panelLEDs[actualIndex].label);
 
       // Clear screen
-      Serial.write(27);
-      Serial.print("[2J");
-      Serial.write(27);
-      Serial.print("[H");
+      debugWrite(27);
+      debugPrint("[2J");
+      debugWrite(27);
+      debugPrint("[H");
 
       printLEDMenu();
     } else {
-      Serial.println("Invalid selection or unsupported LED.");
+      debugPrintln("Invalid selection or unsupported LED.");
     }
   }
 }

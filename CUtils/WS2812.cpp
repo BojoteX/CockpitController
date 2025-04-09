@@ -37,34 +37,34 @@ const CRGB VZColors[] = {
 void WS2812_allOn(CRGB color) {
   fill_solid(leds, NUM_LEDS, color);
   FastLED.show();
-  Serial.println("🔆 WS2812 All ON");
+  debugPrintln("🔆 WS2812 All ON");
 }
 
 void WS2812_allOff() {
   WS2812_clearAll();
-  Serial.println("⚫ WS2812 All OFF");
+  debugPrintln("⚫ WS2812 All OFF");
 }
 
 void WS2812_sweep(const CRGB* colors, uint8_t count) {
-  Serial.println("🔁 WS2812 Sweep with custom colors:");
+  debugPrintln("🔁 WS2812 Sweep with custom colors:");
   for (uint8_t i = 0; i < NUM_LEDS; i++) {
     WS2812_clearAll();
     leds[i] = colors[i % count];
     FastLED.show();
-    Serial.printf("🟢 LED %d ON with color: R=%d G=%d B=%d\n",
+    debugPrintf("🟢 LED %d ON with color: R=%d G=%d B=%d\n",
       i, colors[i % count].r, colors[i % count].g, colors[i % count].b);
     delay(400);
   }
   WS2812_clearAll();
-  Serial.println("✅ WS2812 Sweep complete.");
+  debugPrintln("✅ WS2812 Sweep complete.");
 }
 
 void WS2812_testPattern() {
-  Serial.println("🧪 WS2812 Test Pattern Start");
+  debugPrintln("🧪 WS2812 Test Pattern Start");
   WS2812_allOff();
   WS2812_sweep(VZColors, sizeof(VZColors) / sizeof(CRGB));
   WS2812_allOn(CRGB::Green);
-  Serial.println("✅ WS2812 Test Pattern Complete");
+  debugPrintln("✅ WS2812 Test Pattern Complete");
 }
 
 // WS2812 Helper Implementation

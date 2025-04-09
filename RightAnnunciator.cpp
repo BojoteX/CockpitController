@@ -5,6 +5,7 @@
 #include "src/HIDManager.h"
 #include "src/Mappings.h"
 #include "CUtils/CUtils.h"
+#include "src/Globals.h"
 
 // GPIO definitions are already globally defined in Mappings.h
 
@@ -25,7 +26,7 @@ void RightAnnunciator_init() {
   HIDManager_setNamedButton("RIGHT_ANNUN_ENG_FIRE", true, false);
   HIDManager_commitDeferredReport();
 
-  Serial.println("✅ RIGHT Annunciator initialized for buttons");
+  debugPrintln("✅ RIGHT Annunciator initialized for buttons");
 }
 
 // Main loop for button state checking

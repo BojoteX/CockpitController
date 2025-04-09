@@ -24,24 +24,24 @@ void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
     if(hasECM) PCA9555_autoInitFromLEDMap(0x22); // Init ECM Leds
 
     if (hasLockShoot) {
-      Serial.println("✅ Lock/Shoot detected, initializing...");
+      debugPrintln("✅ Lock/Shoot detected, initializing...");
       WS2812_init();
-    } else Serial.println("⚠️ Lock/Shoot NOT detected!");
+    } else debugPrintln("⚠️ Lock/Shoot NOT detected!");
 
     if (hasCA) {
-      Serial.println("✅ Caution Advisory detected, initializing...");
+      debugPrintln("✅ Caution Advisory detected, initializing...");
       GN1640_init(GLOBAL_CLK_PIN, CA_DIO_PIN);
-    } else Serial.println("⚠️ Caution Advisory NOT detected!");
+    } else debugPrintln("⚠️ Caution Advisory NOT detected!");
 
     if (hasLA) {
-      Serial.println("✅ Left Annunciator detected, initializing...");
+      debugPrintln("✅ Left Annunciator detected, initializing...");
       tm1637_init(LA_Device, GLOBAL_CLK_PIN, LA_DIO_PIN);
-    } else Serial.println("⚠️ Left Annunciator NOT detected!");
+    } else debugPrintln("⚠️ Left Annunciator NOT detected!");
 
     if (hasRA) {
-      Serial.println("✅ Right Annunciator detected, initializing...");
+      debugPrintln("✅ Right Annunciator detected, initializing...");
       tm1637_init(RA_Device, GLOBAL_CLK_PIN, RA_DIO_PIN);
-    } else Serial.println("⚠️ Right Annunciator NOT detected!");
+    } else debugPrintln("⚠️ Right Annunciator NOT detected!");
 
     // Populate the efficient LED lookup map clearly for ACTIVE panels ONLY
     for (int i = 0; i < panelLEDsCount; i++) {
@@ -61,7 +61,7 @@ void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
             ledMap[lbl] = &panelLEDs[i];
         }
     }
-    Serial.println("✅ LED Lookup Map Initialized");
+    debugPrintln("✅ LED Lookup Map Initialized");
 
     // All ON (Clearly conditional initialization)
     if(hasCA) GN1640_allOn();
@@ -173,6 +173,6 @@ void setLED(const char* label, bool state, uint8_t intensity) {
                 break;
         }
     } else {
-        Serial.printf("⚠️ LED label '%s' not found\n", label);
+        debugPrintf("⚠️ LED label '%s' not found\n", label);
     }
 }

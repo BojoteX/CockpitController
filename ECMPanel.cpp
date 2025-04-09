@@ -14,6 +14,7 @@
 #include "src/ECMPanel.h"
 #include "CUtils/CUtils.h"
 #include "src/HIDManager.h"
+#include "src/debugPrint.h"
 
 // Track previous PCA9555 state for ECM panel only
 static byte prevECMPort0 = 0xFF;
@@ -72,7 +73,7 @@ void ECM_init() {
     HIDManager_commitDeferredReport();
 
   } else {
-    Serial.println("❌ Could not read initial state of ECM panel.");
+    debugPrintln("❌ Could not read initial state of ECM panel.");
   }
 }
 

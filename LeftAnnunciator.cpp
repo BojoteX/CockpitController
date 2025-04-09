@@ -5,6 +5,7 @@
 #include "src/HIDManager.h"
 #include "src/Mappings.h"
 #include "CUtils/CUtils.h"
+#include "src/Globals.h"
 
 // Track previous button state for debouncing
 uint8_t prevLeftKeys = 0xFF;
@@ -24,7 +25,7 @@ void LeftAnnunciator_init() {
   HIDManager_setNamedButton("LEFT_ANNUN_MASTER_CAUTION", true, false);
   HIDManager_commitDeferredReport();
 
-  Serial.println("✅ LEFT Annunciator initialized for buttons");
+  debugPrintln("✅ LEFT Annunciator initialized for buttons");
 }
 
 // Main loop for button state checking

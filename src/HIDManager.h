@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>
 
-extern Adafruit_USBD_HID usb_hid;
+// extern Adafruit_USBD_HID usb_hid;
 
 // Initialize HID device and descriptors
 void HIDManager_begin();

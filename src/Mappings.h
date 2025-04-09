@@ -6,6 +6,8 @@
 
 #include <Arduino.h>
 #include <map>
+#include <unordered_map>
+#include <string>
 #include "LEDControl.h"
 
 // All LED Mappings

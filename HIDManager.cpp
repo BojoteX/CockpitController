@@ -2,8 +2,10 @@
 // TEKCreations F/A-18C Firmware HID Report Management
 
 #include <map>
-#include <Adafruit_TinyUSB.h>
 #include "src/HIDManager.h"
+#include "src/Globals.h"
+#include <Adafruit_TinyUSB.h>
+#include "src/DCSBIOSBridge.h"
 #include "src/Mappings.h"
 
 Adafruit_USBD_HID usb_hid;
@@ -47,6 +49,7 @@ static GamepadReport_t report;
 
 // Initialize USB HID interface
 void HIDManager_begin() {
+
   TinyUSBDevice.setID(0xCafe, 0xF18F);
   TinyUSBDevice.setProductDescriptor("Cockpit Brain Controller");
   TinyUSBDevice.setManufacturerDescriptor("Bojote");
@@ -90,43 +93,6 @@ void HIDManager_setButton(uint8_t buttonID, bool pressed) {
   usb_hid.sendReport(0, &report, sizeof(report));
 }
 
-void HIDManager_setNamedButton(const String& name, bool deferSend, bool pressed) {
-  auto it = buttonMap.find(name);
-  if (it == buttonMap.end()) {
-    Serial.print("⚠️ ");
-    Serial.print(name);
-    Serial.println(" is UNKNOWN");
-    return;
-  }
-
-  uint8_t buttonID = it->second;
-
-  // Log action to Serial
-  Serial.print("🔘 ");
-  Serial.print(name);
-  Serial.println(pressed ? " 1" : " 0");
-
-  // Handle exclusive groups (if any)
-  auto groupIt = exclusiveButtonGroups.find(buttonID);
-  if (groupIt != exclusiveButtonGroups.end()) {
-    if (pressed) {
-      HIDManager_setExclusiveButton(buttonID, deferSend);
-    }
-    return;
-  }
-
-  // Handle regular button press
-  if (deferSend) {
-    if (pressed) {
-      report.buttons |= (1UL << (buttonID - 1));
-    } else {
-      report.buttons &= ~(1UL << (buttonID - 1));
-    }
-  } else {
-    HIDManager_setButton(buttonID, pressed);
-  }
-}
-
 // Commit all deferred button changes
 void HIDManager_commitDeferredReport() {
   if (!usb_hid.ready()) return;
@@ -160,5 +126,49 @@ void HIDManager_keepAlive() {
   if (millis() - lastRefresh > refreshInterval) {
     usb_hid.sendReport(0, &report, sizeof(report));
     lastRefresh = millis();
+  }
+}
+
+void HIDManager_setNamedButton(const String& name, bool deferSend, bool pressed) {
+  
+  if (isModeSelectorDCS()) {
+    DCSBIOS_sendCommandByLabel(name, pressed);
+    return;
+  }
+
+  // HID Mode (Original Logic)
+  auto it = buttonMap.find(name);
+  if (it == buttonMap.end()) {
+    debugPrint("⚠️ ");
+    debugPrint(name);
+    debugPrintln(" is UNKNOWN");
+    return;
+  }
+
+  uint8_t buttonID = it->second;
+
+  // Log action to Serial
+  debugPrint("🔘 [HID MODE] ");
+  debugPrint(name);
+  debugPrintln(pressed ? " 1" : " 0");
+
+  // Handle exclusive groups (if any)
+  auto groupIt = exclusiveButtonGroups.find(buttonID);
+  if (groupIt != exclusiveButtonGroups.end()) {
+    if (pressed) {
+      HIDManager_setExclusiveButton(buttonID, deferSend);
+    }
+    return;
+  }
+
+  // Handle regular button press
+  if (deferSend) {
+    if (pressed) {
+      report.buttons |= (1UL << (buttonID - 1));
+    } else {
+      report.buttons &= ~(1UL << (buttonID - 1));
+    }
+  } else {
+    HIDManager_setButton(buttonID, pressed);
   }
 }

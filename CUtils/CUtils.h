@@ -16,8 +16,8 @@ TM1637Device LA_Device;
 #else
 
 // Extern declarations of global annunciator devices
-extern TM1637Device RA_Device;
-extern TM1637Device LA_Device;
+// extern TM1637Device RA_Device;
+// extern TM1637Device LA_Device;
 
 #endif
 

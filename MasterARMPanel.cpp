@@ -1,6 +1,7 @@
 #include "src/MasterARMPanel.h"
 #include "CUtils/CUtils.h"
 #include "src/HIDManager.h"
+#include "src/debugPrint.h"
 
 // Cache local del estado
 static byte prevMasterPort0 = 0xFF;
@@ -32,7 +33,7 @@ void MasterARM_init() {
 
     HIDManager_commitDeferredReport();
   } else {
-    Serial.println("❌ Could not read initial state of MasterArm panel.");
+    debugPrintln("❌ Could not read initial state of MasterArm panel.");
   }
 }
 

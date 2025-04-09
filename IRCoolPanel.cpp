@@ -17,6 +17,7 @@
 #include "src/IRCoolPanel.h"
 #include "CUtils/CUtils.h"
 #include "src/HIDManager.h"
+#include "src/debugPrint.h"
 
 // Previous state cache for change detection
 static byte prevIRCPort0 = 0xFF;
@@ -54,8 +55,8 @@ void Axis_updateRx(uint8_t pin, int& prevValue, bool debug = false) {
   if (abs(raw - prevValue) > DEADZONE) {
     HIDManager_moveAxis(raw);
     if (debug) {
-      Serial.print("🧭 HMD Knob → ");
-      Serial.println(raw);
+      debugPrint("🧭 HMD Knob → ");
+      debugPrintln(raw);
     }
     prevValue = raw;
   }
@@ -107,7 +108,7 @@ void IRCool_init() {
     HIDManager_commitDeferredReport();
 
   } else {
-    Serial.println("❌ Could not read initial state of IRCool panel.");
+    debugPrintln("❌ Could not read initial state of IRCool panel.");
   }
 }
 

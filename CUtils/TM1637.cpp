@@ -125,33 +125,33 @@ void tm1637_allOff(TM1637Device& dev) {
 }
 
 void tm1637_allOn() {
-  Serial.println("🔆 Turning ALL TM1637 LEDs ON");
+  debugPrintln("🔆 Turning ALL TM1637 LEDs ON");
   tm1637_allOn(RA_Device);
   tm1637_allOn(LA_Device);
 }
 
 void tm1637_allOff() {
-  Serial.println("⚫ Turning ALL TM1637 LEDs OFF");
+  debugPrint("⚫ Turning ALL TM1637 LEDs OFF");
   tm1637_allOff(RA_Device);
   tm1637_allOff(LA_Device);
 }
 
 void tm1637_sweep(TM1637Device& dev, const char* deviceName) {
-  Serial.printf("🔁 Sweep for %s:\n", deviceName);
+  debugPrintf("🔁 Sweep for %s:\n", deviceName);
   for (int grid = 0; grid < 6; grid++) {
     for (int seg = 0; seg < 8; seg++) {
       tm1637_allOff(dev);
       tm1637_displaySingleLED(dev, grid, seg, true);
-      Serial.printf("🟢 %s LED at GRID %d, SEG %d\n", deviceName, grid, seg);
+      debugPrintf("🟢 %s LED at GRID %d, SEG %d\n", deviceName, grid, seg);
       delay(200);
     }
   }
   tm1637_allOff(dev);
-  Serial.printf("✅ %s sweep complete.\n", deviceName);
+  debugPrintf("✅ %s sweep complete.\n", deviceName);
 }
 
 void tm1637_sweepPanel() {
-  Serial.println("🔍 Starting TM1637 panel sweep...");
+  debugPrintln("🔍 Starting TM1637 panel sweep...");
   for (uint16_t i = 0; i < panelLEDsCount; i++) {
     if (panelLEDs[i].deviceType != DEVICE_TM1637) continue;
 
@@ -164,26 +164,26 @@ void tm1637_sweepPanel() {
     if (dev) {
       tm1637_allOff(*dev);
       tm1637_displaySingleLED(*dev, grid, segment, true);
-      Serial.printf("🟢 LED ON: %s → GRID %d, SEG %d\n", panelLEDs[i].label, grid, segment);
+      debugPrintf("🟢 LED ON: %s → GRID %d, SEG %d\n", panelLEDs[i].label, grid, segment);
       delay(500);
     }
   }
   tm1637_allOff();
-  Serial.println("✅ TM1637 labeled sweep complete.");
+  debugPrintln("✅ TM1637 labeled sweep complete.");
 }
 
 void tm1637_testPattern() {
-  Serial.println("🧪 Running TM1637 Global Test Pattern...");
+  debugPrintln("🧪 Running TM1637 Global Test Pattern...");
   tm1637_allOff();
   tm1637_allOn();
-  Serial.println("✅ TM1637 Global Test Complete.");
+  debugPrintln("✅ TM1637 Global Test Complete.");
 }
 
 void tm1637_testPattern(TM1637Device& dev, const char* deviceName) {
-  Serial.printf("🧪 Running TM1637 Test Pattern for %s...\n", deviceName);
+  debugPrintf("🧪 Running TM1637 Test Pattern for %s...\n", deviceName);
   tm1637_allOff(dev);
   tm1637_allOn(dev);
-  Serial.printf("✅ %s Test Complete.\n", deviceName);
+  debugPrintf("✅ %s Test Complete.\n", deviceName);
 }
 
 // TM1637 Helper Implementation

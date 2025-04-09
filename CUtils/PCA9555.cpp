@@ -31,7 +31,7 @@ void PCA9555_allLEDsByAddress(uint8_t addr, bool state) {
 
 // Turn ON all PCA9555 LEDs at a specific address
 void PCA9555_allOn(uint8_t addr) {
-  Serial.printf("🔆 PCA9555 (0x%02X) Turning ALL LEDs ON\n", addr);
+  debugPrintf("🔆 PCA9555 (0x%02X) Turning ALL LEDs ON\n", addr);
   for (int i = 0; i < panelLEDsCount; i++) {
     if (panelLEDs[i].deviceType == DEVICE_PCA9555 && panelLEDs[i].info.pcaInfo.address == addr) {
       setLED(panelLEDs[i].label, true, 100);
@@ -41,7 +41,7 @@ void PCA9555_allOn(uint8_t addr) {
 
 // Turn OFF all PCA9555 LEDs at a specific address
 void PCA9555_allOff(uint8_t addr) {
-  Serial.printf("⚫ PCA9555 (0x%02X) Turning ALL LEDs OFF\n", addr);
+  debugPrintf("⚫ PCA9555 (0x%02X) Turning ALL LEDs OFF\n", addr);
   for (int i = 0; i < panelLEDsCount; i++) {
     if (panelLEDs[i].deviceType == DEVICE_PCA9555 && panelLEDs[i].info.pcaInfo.address == addr) {
       setLED(panelLEDs[i].label, false, 0);
@@ -51,27 +51,27 @@ void PCA9555_allOff(uint8_t addr) {
 
 // Sweep through all PCA9555 LEDs at a specific address
 void PCA9555_sweep(uint8_t addr) {
-  Serial.printf("🔍 PCA9555 (0x%02X) LED Sweep Start\n", addr);
+  debugPrintf("🔍 PCA9555 (0x%02X) LED Sweep Start\n", addr);
   for (int i = 0; i < panelLEDsCount; i++) {
     if (panelLEDs[i].deviceType == DEVICE_PCA9555 && panelLEDs[i].info.pcaInfo.address == addr) {
-      Serial.print("🟢 Sweeping LED: ");
-      Serial.println(panelLEDs[i].label);
+      debugPrint("🟢 Sweeping LED: ");
+      debugPrintln(panelLEDs[i].label);
       setLED(panelLEDs[i].label, true, 100);
       delay(500);
       setLED(panelLEDs[i].label, false, 0);
     }
   }
-  Serial.printf("✅ PCA9555 (0x%02X) LED Sweep Complete\n", addr);
+  debugPrintf("✅ PCA9555 (0x%02X) LED Sweep Complete\n", addr);
 }
 
 // Run full PCA9555 test pattern for a single device (All OFF → Sweep → All ON → OFF)
 void PCA9555_patternTesting(uint8_t addr) {
-  Serial.printf("🧪 PCA9555 (0x%02X) Test Pattern Start\n", addr);
+  debugPrintf("🧪 PCA9555 (0x%02X) Test Pattern Start\n", addr);
   PCA9555_allOff(addr);
   PCA9555_allOn(addr);
   delay(3000);
   PCA9555_allOff(addr);
-  Serial.printf("✅ PCA9555 (0x%02X) Test Pattern Complete\n", addr);
+  debugPrintf("✅ PCA9555 (0x%02X) Test Pattern Complete\n", addr);
 }
 
 // Máximo 8 PCA9555 conectados
@@ -151,12 +151,12 @@ void printMappedBitName(uint8_t addr, uint8_t port, uint8_t bit) {
     if (mappedCombos[i].i2cAddress == addr &&
         mappedCombos[i].port == port &&
         mappedCombos[i].bit == bit) {
-      Serial.print(" → ");
-      Serial.print(mappedCombos[i].name);
+      	debugPrint(" → ");
+      	debugPrint(mappedCombos[i].name);
       return;
     }
   }
-  Serial.print(" → UnknownName?");
+  debugPrint(" → UnknownName?");
 }
 
 void initPCA9555AsInput(uint8_t addr) {
@@ -245,20 +245,20 @@ void logPCA9555State(uint8_t address, byte port0, byte port1) {
   for (int b = 0; b < 8; b++) {
     if (bitRead(prev0, b) != bitRead(port0, b)) {
       if (!isBitPartOfMappedCombo(address, 0, b)) {
-        Serial.print("⚡PCA 0x");
-        Serial.print(address, HEX);
-        Serial.print(" Port0 Bit ");
-        Serial.print(b);
-        Serial.print(" ");
-        Serial.print(bitRead(port0, b) ? "HIGH → " : "LOW → ");
-        Serial.println("❌ Not mapped");
+        debugPrint("⚡PCA 0x");
+        debugPrint(address, HEX);
+        debugPrint(" Port0 Bit ");
+        debugPrint(b);
+        debugPrint(" ");
+        debugPrint(bitRead(port0, b) ? "HIGH → " : "LOW → ");
+        debugPrintln("❌ Not mapped");
       } else {
-        Serial.print("⚠️ CRITICAL LOGIC ERROR: Bit ");
-        Serial.print(b);
+        debugPrint("⚠️ CRITICAL LOGIC ERROR: Bit ");
+        debugPrint(b);
         printMappedBitName(address, 0, b);
-        Serial.print(" on PCA 0x");
-        Serial.print(address, HEX);
-        Serial.println(" is mapped but triggered no action 🤖💥");
+        debugPrint(" on PCA 0x");
+        debugPrint(address, HEX);
+        debugPrintln(" is mapped but triggered no action 🤖💥");
       }
     }
   }
@@ -266,20 +266,20 @@ void logPCA9555State(uint8_t address, byte port0, byte port1) {
   for (int b = 0; b < 8; b++) {
     if (bitRead(prev1, b) != bitRead(port1, b)) {
       if (!isBitPartOfMappedCombo(address, 1, b)) {
-        Serial.print("⚡PCA 0x");
-        Serial.print(address, HEX);
-        Serial.print(" Port1 Bit ");
-        Serial.print(b);
-        Serial.print(" ");
-        Serial.print(bitRead(port1, b) ? "HIGH → " : "LOW → ");
-        Serial.println("❌ Not mapped");
+        debugPrint("⚡PCA 0x");
+        debugPrint(address, HEX);
+        debugPrint(" Port1 Bit ");
+        debugPrint(b);
+        debugPrint(" ");
+        debugPrint(bitRead(port1, b) ? "HIGH → " : "LOW → ");
+        debugPrintln("❌ Not mapped");
       } else {
-        Serial.print("⚠️ CRITICAL LOGIC ERROR: Bit ");
-        Serial.print(b);
+        debugPrint("⚠️ CRITICAL LOGIC ERROR: Bit ");
+        debugPrint(b);
         printMappedBitName(address, 1, b);
-        Serial.print(" on PCA 0x");
-        Serial.print(address, HEX);
-        Serial.println(" is mapped but triggered no action 🤖💥");
+        debugPrint(" on PCA 0x");
+        debugPrint(address, HEX);
+        debugPrintln(" is mapped but triggered no action 🤖💥");
       }
     }
   }
