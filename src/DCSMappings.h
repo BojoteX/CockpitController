@@ -2,6 +2,7 @@
 typedef struct {
   uint16_t address;
   uint16_t mask;
+  uint8_t shift;
   const char* ledLabel;
 } DcsOutputMapping;
 
@@ -15,45 +16,23 @@ typedef struct {
 
 // ------------------ OUTPUT MAPPINGS (DCS => LED) ------------------
 static const DcsOutputMapping DCSOutputs[] = {
-  {1, 0xFFFF, "LOCK"},
-  {2, 0xFFFF, "SHOOT"},
-  {3, 0xFFFF, "SHOOT_STROBE"},
-  {10, 0xFFFF, "LA_ENG_FIRE"},
-  {13, 0xFFFF, "LA_MASTER_CAUTION"},
-  {15, 0xFFFF, "LA_GO"},
-  {16, 0xFFFF, "LA_NO_GO"},
-  {17, 0xFFFF, "LA_L_BLEED"},
-  {18, 0xFFFF, "LA_R_BLEED"},
-  {19, 0xFFFF, "LA_SPD_BRK"},
-  {20, 0xFFFF, "LA_STBY"},
-  {21, 0xFFFF, "LA_L_BAR_RED"},
-  {22, 0xFFFF, "LA_REC"},
-  {23, 0xFFFF, "LA_L_BAR_GREEN"},
-  {24, 0xFFFF, "LA_XMT"},
-  {25, 0xFFFF, "CA_DASH_1"},
-  {31, 0xFFFF, "RA_RCDR_ON"},
-  {32, 0xFFFF, "RA_DISP"},
-  {38, 0xFFFF, "RA_SAM"},
-  {39, 0xFFFF, "RA_AI"},
-  {40, 0xFFFF, "RA_AAA"},
-  {41, 0xFFFF, "RA_CW"},
-  {44, 0xFFFF, "ARM_READY"},
-  {45, 0xFFFF, "ARM_DISCH"},
-  {47, 0xFFFF, "ARM_AA"},
-  {48, 0xFFFF, "ARM_AG"},
-  {376, 0xFFFF, "RA_APU_FIRE"},
-  {26, 0xFFFF, "RA_ENG_FIRE"},
-  {304, 0xFFFF, "CA_FUEL_LO"},
-  {305, 0xFFFF, "CA_FCES"},
-  {307, 0xFFFF, "CA_L_GEN"},
-  {308, 0xFFFF, "CA_R_GEN"},
-  {300, 0xFFFF, "CA_BATT_SW"},
-  {301, 0xFFFF, "CA_FCS_HOT"},
-  {302, 0xFFFF, "CA_GEN_TIE"},
-  {299, 0xFFFF, "CA_APU_ACC"},
-  {298, 0xFFFF, "CA_CK_SEAT"},
-  {303, 0xFFFF, "CA_DASH_2"},
-  {309, 0xFFFF, "CA_DASH_3"},
+  {29804, 256,   8,  "LA_MASTER_CAUTION"},
+  {29708, 16,    4,  "LA_ENG_FIRE"},
+  {29708, 4,     2,  "RA_APU_FIRE"},
+  {29708, 32,    5,  "RA_ENG_FIRE"},
+
+  {29908, 32768, 15, "ECM_JETT_SEL"},
+
+  {29804, 512,   9,  "ARM_READY"},
+  {29804, 1024, 10,  "ARM_DISCH"},
+  {29804, 2048, 11,  "ARM_AA"},
+  {29804, 4096, 12,  "ARM_AG"},
+
+  {29704, 64,    6,  "IR_SPN_RCVY"},
+
+  {29710, 256,   8,  "LOCKSHOOT_LOCK"},
+  {29710, 512,   9,  "LOCKSHOOT_SHOOT"},
+  {29710, 1024, 10,  "LOCKSHOOT_BLANK"}
 };
 static const size_t numDCSOutputs = sizeof(DCSOutputs) / sizeof(DcsOutputMapping);
 
