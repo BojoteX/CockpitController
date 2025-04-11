@@ -1,3 +1,5 @@
+#pragma once
+
 // CUtils.h
 // Centralized management for controllers
 
