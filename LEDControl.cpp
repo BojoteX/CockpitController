@@ -46,20 +46,7 @@ void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
     // Populate the efficient LED lookup map clearly for ACTIVE panels ONLY
     for (int i = 0; i < panelLEDsCount; i++) {
         std::string lbl(panelLEDs[i].label);
-
-        bool shouldLoadLED = 
-            (hasCA && lbl.find("CA_") == 0) ||
-            (hasLA && lbl.find("LA_") == 0) ||
-            (hasRA && lbl.find("RA_") == 0) ||
-            (hasLockShoot && lbl.find("LOCKSHOOT_") == 0) ||
-            (hasECM && lbl.find("ECM_") == 0) ||
-            (hasMasterARM && lbl.find("ARM_") == 0) ||
-            (hasIR && lbl.find("IR_") == 0) ||
-            (lbl.find("GPIO_") == 0); // GPIO always loaded
-
-        if (shouldLoadLED) {
-            ledMap[lbl] = &panelLEDs[i];
-        }
+        ledMap[lbl] = &panelLEDs[i];
     }
     debugPrintln("✅ LED Lookup Map Initialized");
 

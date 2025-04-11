@@ -16,7 +16,4 @@
 // Your Controller Assignments and Bitmasks
 #include "ButtonMappings.h"
 
-// All DCS Mappings and Actions
-#include "DCSMappings.h"
-
 #endif // MAPPINGS_H

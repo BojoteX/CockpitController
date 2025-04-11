@@ -21,6 +21,85 @@ LEDMapping panelLEDs[] = {
 
   // GPIO LEDs
   {"BKLT_PANELS", DEVICE_GPIO, {.gpioInfo = {6}}, true},
+  {"SPIN_LT", DEVICE_GPIO, {.gpioInfo = {34}}, false},
+
+  // PCA9555 LEDs
+  {"JETT_SEL_LT", DEVICE_PCA9555, {.pcaInfo = {0x22, 1, 1}}, false, true},
+  {"MASTER_MODE_AA_LT", DEVICE_PCA9555, {.pcaInfo = {0x5B, 1, 3}}, false, true},
+  {"MASTER_MODE_AG_LT", DEVICE_PCA9555, {.pcaInfo = {0x5B, 1, 4}}, false, true},
+  {"MASTER_MODE_RDY_LT", DEVICE_PCA9555, {.pcaInfo = {0x5B, 1, 5}}, false, true},
+  {"MASTER_MODE_DISCH_LT", DEVICE_PCA9555, {.pcaInfo = {0x5B, 1, 6}}, false, true},
+
+  // Right Annunciator (TM1637 - CLK 37, DIO 40)
+  {"RH_FIRE_APU_LT", DEVICE_TM1637, {.tm1637Info = {37, 40, 5, 0}}, false},
+  {"RH_FIRE_LT", DEVICE_TM1637, {.tm1637Info = {37, 40, 0, 2}}, false},
+  {"RH_RCDR_ON_LT", DEVICE_TM1637, {.tm1637Info = {37, 40, 0, 1}}, false},
+  {"RH_AI_LT", DEVICE_TM1637, {.tm1637Info = {37, 40, 4, 1}}, false},
+  {"RH_CW_LT", DEVICE_TM1637, {.tm1637Info = {37, 40, 5, 1}}, false},
+  {"RH_DISP_LT", DEVICE_TM1637, {.tm1637Info = {37, 40, 0, 0}}, false},
+  {"RH_SAM_LT", DEVICE_TM1637, {.tm1637Info = {37, 40, 3, 0}}, false},
+  {"RH_AAA_LT", DEVICE_TM1637, {.tm1637Info = {37, 40, 4, 0}}, false},
+  {"RA_DASH_L1", DEVICE_TM1637, {.tm1637Info = {37, 40, 1, 1}}, false},
+  {"RA_DASH_L2", DEVICE_TM1637, {.tm1637Info = {37, 40, 2, 1}}, false},
+  {"RA_DASH_L3", DEVICE_TM1637, {.tm1637Info = {37, 40, 3, 1}}, false},
+  {"RA_DASH_R1", DEVICE_TM1637, {.tm1637Info = {37, 40, 1, 0}}, false},
+  {"RA_DASH_R2", DEVICE_TM1637, {.tm1637Info = {37, 40, 2, 0}}, false},
+
+  // Left Annunciator (TM1637 - CLK 37, DIO 39)
+  {"LH_GO_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 0, 0}}, false},
+  {"LH_NOGO_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 0, 1}}, false},
+  {"LH_FIRE_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 0, 2}}, false},
+  {"LH_L_BLEED_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 1, 0}}, false},
+  {"LH_R_BLEED_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 1, 1}}, false},
+  {"LH_SPD_BRK_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 2, 0}}, false},
+  {"LH_STBY_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 2, 1}}, false},
+  {"LH_L_BAR_RED_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 3, 0}}, false},
+  {"LH_REC_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 3, 1}}, false},
+  {"LH_L_BAR_GREEN_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 4, 0}}, false},
+  {"LH_XMIT_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 4, 1}}, false},
+  {"LH_MASTER_CAUTION_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 5, 0}}, false},
+  {"LH_ASPJ_OH_LT", DEVICE_TM1637, {.tm1637Info = {37, 39, 5, 1}}, false},
+
+  // Caution Advisory (GN1640T)
+  {"CLIP_CHECK_SEAT_LT", DEVICE_GN1640T, {.gn1640Info = {0, 0, 0}}, false},
+  {"CLIP_APU_ACC_LT", DEVICE_GN1640T, {.gn1640Info = {0, 1, 0}}, false},
+  {"CLIP_BATT_SW_LT", DEVICE_GN1640T, {.gn1640Info = {0, 2, 0}}, false},
+  {"CLIP_FCS_HOT_LT", DEVICE_GN1640T, {.gn1640Info = {0, 0, 1}}, false},
+  {"CLIP_GEN_TIE_LT", DEVICE_GN1640T, {.gn1640Info = {0, 1, 1}}, false},
+  {"CA_DASH_1", DEVICE_GN1640T, {.gn1640Info = {0, 2, 1}}, false},
+  {"CLIP_FUEL_LO_LT", DEVICE_GN1640T, {.gn1640Info = {0, 0, 2}}, false},
+  {"CLIP_FCS_LT", DEVICE_GN1640T, {.gn1640Info = {0, 1, 2}}, false},
+  {"CA_DASH_2", DEVICE_GN1640T, {.gn1640Info = {0, 2, 2}}, false},
+  {"CLIP_L_GEN_LT", DEVICE_GN1640T, {.gn1640Info = {0, 0, 3}}, false},
+  {"CLIP_R_GEN_LT", DEVICE_GN1640T, {.gn1640Info = {0, 1, 3}}, false},
+  {"CA_DASH_3", DEVICE_GN1640T, {.gn1640Info = {0, 2, 3}}, false},
+
+  // LOCKSHOOT LEDs (WS2812)
+  {"LS_LOCK", DEVICE_WS2812, {.ws2812Info = {0}}, false},
+  {"LS_SHOOT", DEVICE_WS2812, {.ws2812Info = {1}}, false},
+  {"LS_SHOOT_STROBE", DEVICE_WS2812, {.ws2812Info = {2}}, false},
+};
+
+
+/*
+LEDMapping panelLEDs[] = {
+
+  // Panel-specific meta-commands
+  {"LA_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
+  {"RA_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
+  {"ECM_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
+  {"ARM_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
+  {"CA_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
+  {"LOCKSHOOT_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
+
+  // Global meta-command (ALL PANELS)
+  {"ALL_PANELS_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
+
+  // Global meta-command (ALL PANELS)
+  {"ALL_PANELS_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
+
+  // GPIO LEDs
+  {"BKLT_PANELS", DEVICE_GPIO, {.gpioInfo = {6}}, true},
   {"IR_SPN_RCVY", DEVICE_GPIO, {.gpioInfo = {34}}, false},
 
   // PCA9555 LEDs
@@ -80,6 +159,7 @@ LEDMapping panelLEDs[] = {
   {"LOCKSHOOT_SHOOT", DEVICE_WS2812, {.ws2812Info = {1}}, false},
   {"LOCKSHOOT_BLANK", DEVICE_WS2812, {.ws2812Info = {2}}, false},
 };
+*/
 
 const uint16_t panelLEDsCount = sizeof(panelLEDs) / sizeof(panelLEDs[0]);
 

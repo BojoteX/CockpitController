@@ -5,7 +5,6 @@
 #include "src/HIDManager.h"
 #include "src/Globals.h"
 #include <Adafruit_TinyUSB.h>
-#include "src/DCSBIOSBridge.h"
 #include "src/Mappings.h"
 
 Adafruit_USBD_HID usb_hid;
@@ -58,6 +57,9 @@ void HIDManager_begin() {
   usb_hid.setPollInterval(2);
   usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
   usb_hid.begin();
+
+  // Wait for USB ready
+  while (!TinyUSBDevice.mounted()) delay(1);
 }
 
 // Set axis value (Rx, 0–4095)
@@ -132,7 +134,9 @@ void HIDManager_keepAlive() {
 void HIDManager_setNamedButton(const String& name, bool deferSend, bool pressed) {
   
   if (isModeSelectorDCS()) {
-    DCSBIOS_sendCommandByLabel(name, pressed);
+
+    // DCSBIOS_sendCommandByLabel(name, pressed);
+    
     return;
   }
 
