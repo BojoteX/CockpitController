@@ -5,7 +5,7 @@
 #include "src/Mappings.h"
 
 // ===== HW Controller Utilities =====
-#include "CUtils/CUtils.h"
+#include "lib/CUtils/src/CUtils.h"
 
 // ===== LED Control Implementation =====
 #include "src/LEDControl.h"

@@ -1,0 +1,2 @@
+The python script auto-generates the correct .cpp and .h files for your program based on the .json provided. Instead of maintaining
+a data structure with this info, we hardcode it for efficiency

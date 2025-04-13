@@ -4,6 +4,7 @@
 #include <map>
 #include "src/HIDManager.h"
 #include "src/Globals.h"
+#include "src/DCSBIOSBridge.h"
 #include <Adafruit_TinyUSB.h>
 
 Adafruit_USBD_HID usb_hid;
@@ -130,30 +131,10 @@ void HIDManager_keepAlive() {
   }
 }
 
-// Utility to send commands to DCS (handling multi-position switches)
-void sendDCSCommand(const char* label, bool state) {
-    const char* newLabel = label;
-    const char* newState = state ? "1" : "0";
-
-    // Translation for Master ARM switch (3-pos)
-    if (strcmp(label, "MASTER_ARM_ON") == 0 && state) {
-        newLabel = "MASTER_ARM_SW";
-        newState = "1";
-    } else if (strcmp(label, "MASTER_ARM_OFF") == 0 && state) {
-        newLabel = "MASTER_ARM_SW";
-        newState = "0";
-    }
-
-    Serial.write(newLabel);
-    Serial.write(" ");
-    Serial.write(newState);
-    Serial.write("\n");
-}
-
 void HIDManager_setNamedButton(const String& name, bool deferSend, bool pressed) {
   
   if (isModeSelectorDCS()) {
-    sendDCSCommand(name.c_str(), pressed);
+    sendDCSBIOSCommand(name.c_str(), pressed ? 1 : 0);
     return;
   }
 

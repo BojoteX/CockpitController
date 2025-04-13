@@ -1,6 +1,5 @@
 #include "src/DebugPrint.h"
 #include "src/Globals.h"  // For isModeSelectorDCS()
-// #include <stdarg.h>   // For variable argument handling
 
 extern bool DEBUG;
 extern bool isModeSelectorDCS(); // ensure you have this defined somewhere globally

@@ -12,7 +12,7 @@
 // Author: Bojote
 
 #include "src/ECMPanel.h"
-#include "CUtils/CUtils.h"
+#include "lib/CUtils/src/CUtils.h"
 #include "src/HIDManager.h"
 #include "src/debugPrint.h"
 

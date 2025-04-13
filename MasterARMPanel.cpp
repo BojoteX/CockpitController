@@ -1,5 +1,5 @@
 #include "src/MasterARMPanel.h"
-#include "CUtils/CUtils.h"
+#include "lib/CUtils/src/CUtils.h"
 #include "src/HIDManager.h"
 #include "src/debugPrint.h"
 

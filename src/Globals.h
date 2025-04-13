@@ -4,7 +4,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>   
-#include "../CUtils/CUtils.h"             
+#include "../lib/CUtils/src/CUtils.h"             
 #include "DebugPrint.h"
 
 // Panel initialization functions (extern declarations)

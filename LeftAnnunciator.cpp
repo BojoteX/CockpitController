@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include "src/HIDManager.h"
 #include "src/Mappings.h"
-#include "CUtils/CUtils.h"
+#include "lib/CUtils/src/CUtils.h"
 #include "src/Globals.h"
 
 // Track previous button state for debouncing

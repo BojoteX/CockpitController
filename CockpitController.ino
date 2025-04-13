@@ -1,13 +1,9 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
-#define BAUD_RATE 250000
-#define DCSBIOS_DEFAULT_SERIAL
-#define DCSBIOS_DISABLE_SERVO
-#include "src/DcsBios.h"
-
-// Helps debug problems
-bool DEBUG = false;
+// Helps debug problems, set both...
+// #define DEBUG_MODE
+bool DEBUG = false; // Needed for alternate debugPrint
 
 // -- GPIO Pin Configuration --
 #define SDA_PIN 8                      // I2C Data Pin
@@ -15,98 +11,15 @@ bool DEBUG = false;
 #define MODE_SWITCH_PIN 33             // Mode Selection Pin (DCS-BIOS/HID)
 
 // -- Serial Configuration --
+#define BAUD_RATE 250000
 #define SERIAL_STARTUP_DELAY 3000      // Delay (ms) allowing Serial Monitor to connect
-
-#include <Wire.h>
 
 // -- Project Headers --
 #define DEFINE_MAPPINGS
 #include "src/HIDManager.h"
 #include "src/Globals.h"
-
-// Auto-generated callbacks (copy-paste into main .ino)
-void onLEDChange_LH_ADV_L_BAR_RED(unsigned int newValue) { setLED("LH_ADV_L_BAR_RED", newValue); }
-void onLEDChange_LH_ADV_L_BLEED(unsigned int newValue) { setLED("LH_ADV_L_BLEED", newValue); }
-void onLEDChange_LH_ADV_R_BLEED(unsigned int newValue) { setLED("LH_ADV_R_BLEED", newValue); }
-void onLEDChange_LH_ADV_SPD_BRK(unsigned int newValue) { setLED("LH_ADV_SPD_BRK", newValue); }
-void onLEDChange_LH_ADV_STBY(unsigned int newValue) { setLED("LH_ADV_STBY", newValue); }
-void onLEDChange_LS_LOCK(unsigned int newValue) { setLED("LS_LOCK", newValue); }
-void onLEDChange_LS_SHOOT(unsigned int newValue) { setLED("LS_SHOOT", newValue); }
-void onLEDChange_LS_SHOOT_STROBE(unsigned int newValue) { setLED("LS_SHOOT_STROBE", newValue); }
-void onLEDChange_LH_ADV_ASPJ_OH(unsigned int newValue) { setLED("LH_ADV_ASPJ_OH", newValue); }
-void onLEDChange_LH_ADV_GO(unsigned int newValue) { setLED("LH_ADV_GO", newValue); }
-void onLEDChange_LH_ADV_L_BAR_GREEN(unsigned int newValue) { setLED("LH_ADV_L_BAR_GREEN", newValue); }
-void onLEDChange_LH_ADV_REC(unsigned int newValue) { setLED("LH_ADV_REC", newValue); }
-void onLEDChange_LH_ADV_NO_GO(unsigned int newValue) { setLED("LH_NOGO_LT", newValue); }
-void onLEDChange_LH_ADV_XMIT(unsigned int newValue) { setLED("LH_ADV_XMIT", newValue); }
-void onLEDChange_RH_ADV_AAA(unsigned int newValue) { setLED("RH_ADV_AAA", newValue); }
-void onLEDChange_RH_ADV_AI(unsigned int newValue) { setLED("RH_ADV_AI", newValue); }
-void onLEDChange_RH_ADV_CW(unsigned int newValue) { setLED("RH_ADV_CW", newValue); }
-void onLEDChange_RH_ADV_DISP(unsigned int newValue) { setLED("RH_ADV_DISP", newValue); }
-void onLEDChange_RH_ADV_RCDR_ON(unsigned int newValue) { setLED("RH_ADV_RCDR_ON", newValue); }
-void onLEDChange_RH_ADV_SAM(unsigned int newValue) { setLED("RH_ADV_SAM", newValue); }
-void onLEDChange_RH_ADV_SPARE_RH1(unsigned int newValue) { setLED("RH_ADV_SPARE_RH1", newValue); }
-void onLEDChange_RH_ADV_SPARE_RH2(unsigned int newValue) { setLED("RH_ADV_SPARE_RH2", newValue); }
-void onLEDChange_RH_ADV_SPARE_RH3(unsigned int newValue) { setLED("RH_ADV_SPARE_RH3", newValue); }
-void onLEDChange_MASTER_MODE_AA_LT(unsigned int newValue) { setLED("MASTER_MODE_AA_LT", newValue); }
-void onLEDChange_MASTER_MODE_AG_LT(unsigned int newValue) { setLED("MASTER_MODE_AG_LT", newValue); }
-void onLEDChange_RH_ADV_SPARE_RH4(unsigned int newValue) { setLED("RH_ADV_SPARE_RH4", newValue); }
-void onLEDChange_RH_ADV_SPARE_RH5(unsigned int newValue) { setLED("RH_ADV_SPARE_RH5", newValue); }
-void onLEDChange_SPIN_LT(unsigned int newValue) { setLED("SPIN_LT", newValue); }
-void onLEDChange_CLIP_CK_SEAT_LT(unsigned int newValue) { setLED("CLIP_CK_SEAT_LT", newValue); }
-void onLEDChange_CLIP_APU_ACC_LT(unsigned int newValue) { setLED("CLIP_APU_ACC_LT", newValue); }
-void onLEDChange_CLIP_BATT_SW_LT(unsigned int newValue) { setLED("CLIP_BATT_SW_LT", newValue); }
-void onLEDChange_CLIP_FCES_LT(unsigned int newValue) { setLED("CLIP_FCES_LT", newValue); }
-void onLEDChange_CLIP_FCS_HOT_LT(unsigned int newValue) { setLED("CLIP_FCS_HOT_LT", newValue); }
-void onLEDChange_CLIP_FUEL_LO_LT(unsigned int newValue) { setLED("CLIP_FUEL_LO_LT", newValue); }
-void onLEDChange_CLIP_GEN_TIE_LT(unsigned int newValue) { setLED("CLIP_GEN_TIE_LT", newValue); }
-void onLEDChange_CLIP_SPARE_CTN1_LT(unsigned int newValue) { setLED("CLIP_SPARE_CTN1_LT", newValue); }
-void onLEDChange_CLIP_SPARE_CTN2_LT(unsigned int newValue) { setLED("CLIP_SPARE_CTN2_LT", newValue); }
-void onLEDChange_CLIP_L_GEN_LT(unsigned int newValue) { setLED("CLIP_L_GEN_LT", newValue); }
-void onLEDChange_CLIP_R_GEN_LT(unsigned int newValue) { setLED("CLIP_R_GEN_LT", newValue); }
-void onLEDChange_CLIP_SPARE_CTN3_LT(unsigned int newValue) { setLED("CLIP_SPARE_CTN3_LT", newValue); }
-
-// DCS-BIOS buffer declarations:
-DcsBios::IntegerBuffer LH_ADV_L_BAR_RED_Buffer(0x7408, 0x8000, 15, onLEDChange_LH_ADV_L_BAR_RED);
-DcsBios::IntegerBuffer LH_ADV_L_BLEED_Buffer(0x7408, 0x0800, 11, onLEDChange_LH_ADV_L_BLEED);
-DcsBios::IntegerBuffer LH_ADV_R_BLEED_Buffer(0x7408, 0x1000, 12, onLEDChange_LH_ADV_R_BLEED);
-DcsBios::IntegerBuffer LH_ADV_SPD_BRK_Buffer(0x7408, 0x2000, 13, onLEDChange_LH_ADV_SPD_BRK);
-DcsBios::IntegerBuffer LH_ADV_STBY_Buffer(0x7408, 0x4000, 14, onLEDChange_LH_ADV_STBY);
-DcsBios::IntegerBuffer LS_LOCK_Buffer(0x7408, 0x0001, 0, onLEDChange_LS_LOCK);
-DcsBios::IntegerBuffer LS_SHOOT_Buffer(0x7408, 0x0002, 1, onLEDChange_LS_SHOOT);
-DcsBios::IntegerBuffer LS_SHOOT_STROBE_Buffer(0x7408, 0x0004, 2, onLEDChange_LS_SHOOT_STROBE);
-DcsBios::IntegerBuffer LH_ADV_ASPJ_OH_Buffer(0x740A, 0x0008, 3, onLEDChange_LH_ADV_ASPJ_OH);
-DcsBios::IntegerBuffer LH_ADV_GO_Buffer(0x740A, 0x0010, 4, onLEDChange_LH_ADV_GO);
-DcsBios::IntegerBuffer LH_ADV_L_BAR_GREEN_Buffer(0x740A, 0x0002, 1, onLEDChange_LH_ADV_L_BAR_GREEN);
-DcsBios::IntegerBuffer LH_ADV_NO_GO_Buffer(0x740A, 0x0020, 5, onLEDChange_LH_ADV_NO_GO);
-DcsBios::IntegerBuffer LH_ADV_REC_Buffer(0x740A, 0x0001, 0, onLEDChange_LH_ADV_REC);
-DcsBios::IntegerBuffer LH_ADV_XMIT_Buffer(0x740A, 0x0004, 2, onLEDChange_LH_ADV_XMIT);
-DcsBios::IntegerBuffer RH_ADV_AAA_Buffer(0x740A, 0x0800, 11, onLEDChange_RH_ADV_AAA);
-DcsBios::IntegerBuffer RH_ADV_AI_Buffer(0x740A, 0x0400, 10, onLEDChange_RH_ADV_AI);
-DcsBios::IntegerBuffer RH_ADV_CW_Buffer(0x740A, 0x1000, 12, onLEDChange_RH_ADV_CW);
-DcsBios::IntegerBuffer RH_ADV_DISP_Buffer(0x740A, 0x0100, 8, onLEDChange_RH_ADV_DISP);
-DcsBios::IntegerBuffer RH_ADV_RCDR_ON_Buffer(0x740A, 0x0080, 7, onLEDChange_RH_ADV_RCDR_ON);
-DcsBios::IntegerBuffer RH_ADV_SAM_Buffer(0x740A, 0x0200, 9, onLEDChange_RH_ADV_SAM);
-DcsBios::IntegerBuffer RH_ADV_SPARE_RH1_Buffer(0x740A, 0x2000, 13, onLEDChange_RH_ADV_SPARE_RH1);
-DcsBios::IntegerBuffer RH_ADV_SPARE_RH2_Buffer(0x740A, 0x4000, 14, onLEDChange_RH_ADV_SPARE_RH2);
-DcsBios::IntegerBuffer RH_ADV_SPARE_RH3_Buffer(0x740A, 0x8000, 15, onLEDChange_RH_ADV_SPARE_RH3);
-DcsBios::IntegerBuffer MASTER_MODE_AA_LT_Buffer(0x740C, 0x0200, 9, onLEDChange_MASTER_MODE_AA_LT);
-DcsBios::IntegerBuffer MASTER_MODE_AG_LT_Buffer(0x740C, 0x0400, 10, onLEDChange_MASTER_MODE_AG_LT);
-DcsBios::IntegerBuffer RH_ADV_SPARE_RH4_Buffer(0x740C, 0x0001, 0, onLEDChange_RH_ADV_SPARE_RH4);
-DcsBios::IntegerBuffer RH_ADV_SPARE_RH5_Buffer(0x740C, 0x0002, 1, onLEDChange_RH_ADV_SPARE_RH5);
-DcsBios::IntegerBuffer SPIN_LT_Buffer(0x742A, 0x0800, 11, onLEDChange_SPIN_LT);
-DcsBios::IntegerBuffer CLIP_CK_SEAT_LT_Buffer(0x74A0, 0x8000, 15, onLEDChange_CLIP_CK_SEAT_LT);
-DcsBios::IntegerBuffer CLIP_APU_ACC_LT_Buffer(0x74A4, 0x0100, 8, onLEDChange_CLIP_APU_ACC_LT);
-DcsBios::IntegerBuffer CLIP_BATT_SW_LT_Buffer(0x74A4, 0x0200, 9, onLEDChange_CLIP_BATT_SW_LT);
-DcsBios::IntegerBuffer CLIP_FCES_LT_Buffer(0x74A4, 0x4000, 14, onLEDChange_CLIP_FCES_LT);
-DcsBios::IntegerBuffer CLIP_FCS_HOT_LT_Buffer(0x74A4, 0x0400, 10, onLEDChange_CLIP_FCS_HOT_LT);
-DcsBios::IntegerBuffer CLIP_FUEL_LO_LT_Buffer(0x74A4, 0x2000, 13, onLEDChange_CLIP_FUEL_LO_LT);
-DcsBios::IntegerBuffer CLIP_GEN_TIE_LT_Buffer(0x74A4, 0x0800, 11, onLEDChange_CLIP_GEN_TIE_LT);
-DcsBios::IntegerBuffer CLIP_SPARE_CTN1_LT_Buffer(0x74A4, 0x1000, 12, onLEDChange_CLIP_SPARE_CTN1_LT);
-DcsBios::IntegerBuffer CLIP_SPARE_CTN2_LT_Buffer(0x74A4, 0x8000, 15, onLEDChange_CLIP_SPARE_CTN2_LT);
-DcsBios::IntegerBuffer CLIP_L_GEN_LT_Buffer(0x74A8, 0x0100, 8, onLEDChange_CLIP_L_GEN_LT);
-DcsBios::IntegerBuffer CLIP_R_GEN_LT_Buffer(0x74A8, 0x0200, 9, onLEDChange_CLIP_R_GEN_LT);
-DcsBios::IntegerBuffer CLIP_SPARE_CTN3_LT_Buffer(0x74A8, 0x0400, 10, onLEDChange_CLIP_SPARE_CTN3_LT);
+#include "src/DCSBIOSBridge.h"
+#include <Wire.h>
 
 // Definitions for Panel Detection logic
 bool hasIR, hasLA, hasRA, hasCA, hasLockShoot, hasMasterARM, hasECM, hasBrain;
@@ -120,6 +33,9 @@ bool dcsConnected = false;
 #include "src/ECMPanel.h"
 #include "src/IRCoolPanel.h"
 #include "src/MasterARMPanel.h"
+
+// Force compilation of all CUtils internals (Arduino won't compile .cpps in lib automatically)
+#include "lib/CUtils/src/CUtils.cpp"
 
 // Checks mode selector state
 bool isModeSelectorDCS() {
@@ -213,18 +129,17 @@ void setup() {
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
 
-  // DCS-BIOS Bridge Initialization
-  debugPrintln("Initializing DCS-BIOS Bridge...");
-  DcsBios::setup();
+  DCSBIOS_init();
+  debugPrintln("\nDCSBIOS Library Initialization Complete.\n");
 
-  if (DEBUG) {
+  #ifdef DEBUG_MODE
     enablePCA9555Logging(true);
     printLEDMenu();
     handleLEDSelection();
     debugPrintln("Exiting LED selection menu. Continuing execution...");
-  }
-  
-  debugPrintln("\nInitialization Complete.\n");
+  #endif
+
+  debugPrintln("\nREADY\n");
 }
 
 // Arduino Loop Routine
@@ -238,14 +153,14 @@ void loop() {
   if (hasECM) ECM_loop();
   if (hasMasterARM) MasterARM_loop();
 
-  // PCA9555 Logging
+  // PCA9555 Logging (only used when building our own masks/detecting bit position/port for PCA)
   if (isPCA9555LoggingEnabled()) {
     byte p0, p1;
-    readPCA9555(0x26, p0, p1);
+    if (hasBrain) readPCA9555(0x26, p0, p1);
     if (hasECM) readPCA9555(0x22, p0, p1);
     if (hasMasterARM) readPCA9555(0x5B, p0, p1);
   }
 
   // DCS-BIOS Bridge loop
-  DcsBios::loop();
+  DCSBIOS_loop();
 }
