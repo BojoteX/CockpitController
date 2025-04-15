@@ -1,6 +1,14 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
+#include "Adafruit_TinyUSB.h"
+Adafruit_USBD_CDC usb_cdc;
+
+// -- Serial Configuration --
+#define BAUD_RATE 250000
+#define SERIAL_STARTUP_DELAY 3000      // Delay (ms) allowing Serial Monitor to connect
+#define Serial usb_cdc
+
 // Helps debug problems, set both...
 // #define DEBUG_MODE
 bool DEBUG = false; // Needed for alternate debugPrint
@@ -9,10 +17,6 @@ bool DEBUG = false; // Needed for alternate debugPrint
 #define SDA_PIN 8                      // I2C Data Pin
 #define SCL_PIN 9                      // I2C Clock Pin
 #define MODE_SWITCH_PIN 33             // Mode Selection Pin (DCS-BIOS/HID)
-
-// -- Serial Configuration --
-#define BAUD_RATE 250000
-#define SERIAL_STARTUP_DELAY 3000      // Delay (ms) allowing Serial Monitor to connect
 
 // -- Project Headers --
 #define DEFINE_MAPPINGS
