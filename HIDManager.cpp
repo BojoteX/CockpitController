@@ -134,8 +134,30 @@ void HIDManager_keepAlive() {
 void HIDManager_setNamedButton(const String& name, bool deferSend, bool pressed) {
   
   if (isModeSelectorDCS()) {
-    sendDCSBIOSCommand(name.c_str(), pressed ? 1 : 0);
+
+    // Translate our switches, dials and rotary encoders
+
+  // {0x22, 0, 4, "EMC_SELECTOR_OFF"},
+  // {0x22, 0, 5, "EMC_SELECTOR_STBY"},
+  // {0x22, 0, 6, "EMC_SELECTOR_BIT"},
+  // {0x22, 0, 7, "EMC_SELECTOR_REC"},
+  // {0x22, 1, 0, "EMC_SELECTOR_XMIT"},
+
+    if (name == "EMC_SELECTOR_XMIT") {
+      sendDCSBIOSCommand("ECM_MODE_SW", 0);
+    } else if (name == "EMC_SELECTOR_REC") {
+      sendDCSBIOSCommand("ECM_MODE_SW", 1);
+    } else if (name == "EMC_SELECTOR_BIT") {
+      sendDCSBIOSCommand("ECM_MODE_SW", 2);
+    } else if (name == "EMC_SELECTOR_STBY") {
+      sendDCSBIOSCommand("ECM_MODE_SW", 3);
+    } else if (name == "EMC_SELECTOR_OFF") {
+      sendDCSBIOSCommand("ECM_MODE_SW", 4);
+    } else {
+      sendDCSBIOSCommand(name.c_str(), pressed ? 1 : 0);
+    }
     return;
+
   }
 
   // HID Mode (Original Logic)
