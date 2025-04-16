@@ -62,8 +62,14 @@ void HIDManager_begin() {
   while (!TinyUSBDevice.mounted()) delay(1);
 }
 
-// Set axis value (Rx, 0–4095)
+// Set axis value
 void HIDManager_moveAxis(int rxValue) {
+
+  if (isModeSelectorDCS()) {
+    sendDCSBIOSCommand("HMD_OFF_BRT", map(rxValue, 0, 4095, 0, 65535));
+    return;
+  }
+
   if (!usb_hid.ready()) return;
   rxValue = constrain(rxValue, 0, 4095);
   report.rx = rxValue;

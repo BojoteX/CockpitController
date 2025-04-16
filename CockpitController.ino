@@ -43,7 +43,7 @@ bool dcsConnected = false;
 
 // Checks mode selector state
 bool isModeSelectorDCS() {
-  return digitalRead(MODE_SWITCH_PIN) == LOW;
+  return digitalRead(MODE_SWITCH_PIN) == HIGH;
 }
 
 // Arduino Setup Routine

@@ -2,8 +2,6 @@
 #define DCSBIOS_DISABLE_SERVO
 #include <DcsBios.h>
 #include <Arduino.h>
-
-#include "ReplayData/DcsbiosReplayMap.h"
 #include "ReplayData/DcsbiosReplayData.h"
 #include "ReplayData/DCSBIOSBridgeData.h"
 #include <map>
@@ -94,32 +92,6 @@ void DcsbiosProtocolReplay() {
     Serial.println("[REPLAY PROTOCOL] Completed DCS-BIOS parser injection.\n");
 }
 
-void runDcsbiosReplayFromJson() {
-    Serial.println("\n[REPLAY JSON WITHOUT DCSBIOS LIBRARY] Starting with LED state tracking...");
-    delay(3000);
-
-    for (size_t i = 0; i < replayFrameCount; ++i) {
-        const auto& frame = replayFrames[i];
-        delay((unsigned long)(frame.delay * 50));
-
-        for (size_t j = 0; j < replayMapSize; ++j) {
-            const auto& entry = replayMap[j];
-            if (entry.address == frame.address) {
-                uint8_t value = (frame.data & entry.mask) >> entry.shift;
-                String label = entry.label;
-
-                uint8_t prevValue = ledReplayState[label];
-                if (value != prevValue) {
-                    ledReplayState[label] = value;
-                    Serial.printf("[REPLAY JSON WITHOUT DCSBIOS LIBRARY] %s = %u\n", entry.label, value);
-                }
-            }
-        }
-    }
-
-    Serial.println("\n[REPLAY JSON WITHOUT DCSBIOS LIBRARY] Completed all frames.");
-}
-
 void setup() {
     DcsBios::setup();
 
@@ -128,8 +100,7 @@ void setup() {
   unsigned long start = millis();
   while (!Serial && (millis() - start < SERIAL_STARTUP_DELAY)) delay(1);
 
-    // runDcsbiosReplayFromJson();
-    DcsbiosProtocolReplay();
+  DcsbiosProtocolReplay();
 }
 
 void loop() {
