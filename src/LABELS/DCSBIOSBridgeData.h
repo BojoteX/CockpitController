@@ -58,7 +58,7 @@ static const std::unordered_map<uint32_t, std::vector<const char*>> DcsOutputHas
 
 struct DcsInputEntry {
     const char* label;
-    uint8_t max_value;
+    uint16_t max_value;
     const char* description;
 };
 

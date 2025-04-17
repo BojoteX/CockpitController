@@ -49,10 +49,10 @@ static GamepadReport_t report;
 // Initialize USB HID interface
 void HIDManager_begin() {
 
-  TinyUSBDevice.setID(0xCafe, 0xF18F);
-  TinyUSBDevice.setProductDescriptor("Cockpit Brain Controller");
+  TinyUSBDevice.setID(0xCafe, 0x18C0);
+  TinyUSBDevice.setProductDescriptor("F/A-18C Hornet Cockpit Controller");
   TinyUSBDevice.setManufacturerDescriptor("Bojote");
-  TinyUSBDevice.setSerialDescriptor("FA18C-CBRAIN-1");
+  TinyUSBDevice.setSerialDescriptor("FA18C-BC-1");
 
   usb_hid.setPollInterval(2);
   usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
@@ -62,18 +62,52 @@ void HIDManager_begin() {
   while (!TinyUSBDevice.mounted()) delay(1);
 }
 
-// Set axis value
-void HIDManager_moveAxis(int rxValue) {
+void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
+  // -------- Config per pin (extendable switch) --------
+  int DEADZONE_LOW = 50;
+  int DEADZONE_HIGH = 4080;
+  int THRESHOLD = 128;
+  int OVERSAMPLE_COUNT = 32;
 
-  if (isModeSelectorDCS()) {
-    sendDCSBIOSCommand("HMD_OFF_BRT", map(rxValue, 0, 4095, 0, 65535));
-    return;
+  static int lastRaw[40];
+  static int lastOutput[40];
+  static bool initialized[40];
+
+  if (!initialized[pin]) {
+    lastRaw[pin] = -1;
+    lastOutput[pin] = -1;
+    initialized[pin] = true;
   }
 
-  if (!usb_hid.ready()) return;
-  rxValue = constrain(rxValue, 0, 4095);
-  report.rx = rxValue;
-  usb_hid.sendReport(0, &report, sizeof(report));
+  long sum = 0;
+  for (int i = 0; i < OVERSAMPLE_COUNT; i++) {
+    sum += analogRead(pin);
+    delayMicroseconds(250);
+  }
+  int raw = sum / OVERSAMPLE_COUNT;
+
+  if (raw < DEADZONE_LOW) raw = 0;
+  if (raw > DEADZONE_HIGH) raw = 4095;
+
+  int output = map(raw, 0, 4095, 0, 65535);
+
+  if (isModeSelectorDCS()) {
+    if (abs(output - lastOutput[pin]) > THRESHOLD) {
+      lastOutput[pin] = output;
+      sendDCSBIOSCommand(dcsIdentifier, output);
+    }
+  } else {
+      if ((raw == 0 && lastRaw[pin] != 0)  || 
+        (raw == 4095 && lastRaw[pin] != 4095) || 
+        (raw != 0 && raw != 4095 && abs(raw - lastRaw[pin]) > THRESHOLD)) {
+
+      lastRaw[pin] = raw;
+      if (!usb_hid.ready()) return;
+      report.rx = raw;
+      usb_hid.sendReport(0, &report, sizeof(report));
+      debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, raw);
+    }
+  }
 }
 
 // Momentary button press simulation

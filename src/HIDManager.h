@@ -7,7 +7,7 @@
 void HIDManager_begin();
 
 // Set RX axis (0–4095)
-void HIDManager_moveAxis(int xValue);
+void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin);
 
 // Momentary button press (simulates press + release)
 void HIDManager_pressButton(uint8_t buttonID);

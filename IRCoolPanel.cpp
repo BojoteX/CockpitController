@@ -25,42 +25,6 @@ static byte prevIRCPort1 = 0xFF;
 
 // Analog pin connected to HMD Knob (Rx axis)
 constexpr int HMD_KNOB_PIN = 18;
-static int prevAnalog = -1;
-
-void Axis_updateRx(uint8_t pin, int& prevValue, bool debug = false) {
-  const int DEADZONE = 100;
-  const int NOISE_THRESHOLD = 200;
-  const int LOW_CLAMP = 100;
-  const int HIGH_CLAMP = 4015;
-
-  static int lastStable = -1;
-  static int jitterCounter = 0;
-
-  int raw = analogRead(pin);
-
-  // Clamp extremes
-  if (raw < LOW_CLAMP) raw = 0;
-  else if (raw > HIGH_CLAMP) raw = 4095;
-
-  // Noise filtering (smoothing)
-  if (lastStable >= 0 && abs(raw - lastStable) < NOISE_THRESHOLD) {
-    jitterCounter++;
-    if (jitterCounter < 3) return;  // Ignore unless it's persistent
-  } else {
-    jitterCounter = 0;
-  }
-
-  lastStable = raw;
-
-  if (abs(raw - prevValue) > DEADZONE) {
-    HIDManager_moveAxis(raw);
-    if (debug) {
-      debugPrint("🧭 HMD Knob → ");
-      debugPrintln(raw);
-    }
-    prevValue = raw;
-  }
-}
 
 // Port bit mappings for panel @0x26
 enum Port0Bits {
@@ -98,11 +62,7 @@ void IRCool_init() {
     else
       HIDManager_setNamedButton("IR_COOL_NORM", true);
 
-    // Set initial value for HMD Knob
-    int initial = analogRead(HMD_KNOB_PIN);
-    initial = constrain(initial, 0, 4095);
-    prevAnalog = initial;
-    HIDManager_moveAxis(initial);
+    HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
 
     // Commit all deferred button states
     HIDManager_commitDeferredReport();
@@ -140,7 +100,7 @@ void IRCool_loop() {
   }
 
   // update the HMD knob
-  Axis_updateRx(HMD_KNOB_PIN, prevAnalog, true);
+  HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
 
   // Update previous states
   prevIRCPort0 = port0;

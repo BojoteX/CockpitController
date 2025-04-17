@@ -1,5 +1,3 @@
-#define DCSBIOS_DEFAULT_SERIAL
-#define DCSBIOS_DISABLE_SERVO
 #include <DcsBios.h>
 #include "src/DCSBIOSBridge.h"
 #include "src/LABELS/DCSBIOSBridgeData.h"
@@ -65,23 +63,5 @@ void DCSBIOS_loop() {
 }
 
 void sendDCSBIOSCommand(const char* label, uint16_t value) {
-    debugPrintf("SEND DCSBIOS COMMAND: Selector [%s] = %u\n", label, value);
-    Serial.write(label);
-    Serial.write(' ');
-
-    char buf[6];
-    int i = 0;
-    uint16_t temp = value;
-
-    if (temp == 0) {
-        Serial.write('0');
-    } else {
-        while (temp > 0 && i < 5) {
-            buf[i++] = '0' + (temp % 10);
-            temp /= 10;
-        }
-        while (i > 0) Serial.write(buf[--i]);
-    }
-
-    Serial.write('\n');
+    DcsBios::sendDcsBiosMessage(label, String(value).c_str());
 }

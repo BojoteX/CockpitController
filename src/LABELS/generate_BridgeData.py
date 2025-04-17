@@ -94,8 +94,7 @@ with open(output_header_file, "w", encoding="utf-8") as f:
         label_str = ', '.join(f'"{label}"' for label in labels)
         f.write(f'    {{ 0x{h:08X}, {{ {label_str} }} }},\n')
     f.write("};\n\n")
-
-    f.write("struct DcsInputEntry {\n    const char* label;\n    uint8_t max_value;\n    const char* description;\n};\n\n")
+    f.write("struct DcsInputEntry {\n    const char* label;\n    uint16_t max_value;\n    const char* description;\n};\n\n")
     f.write("static const DcsInputEntry DcsInputTable[] = {\n")
     for entry in input_entries:
         label = entry["label"]
