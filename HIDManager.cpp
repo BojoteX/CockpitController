@@ -66,7 +66,7 @@ void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
   // -------- Config per pin (extendable switch) --------
   int DEADZONE_LOW = 50;
   int DEADZONE_HIGH = 4080;
-  int THRESHOLD = 128;
+  int THRESHOLD = 512;
   int OVERSAMPLE_COUNT = 32;
 
   static int lastRaw[40];

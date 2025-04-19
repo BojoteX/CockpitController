@@ -14,26 +14,33 @@ void sendDebug(const char* msg) {
 }
 
 void wifi_setup() {
-  sendDebug("[WiFi] Connecting");
+  Serial.print("[WiFi] Connecting");
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   unsigned long start = millis();
 
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     delay(500);
-    sendDebug(".");
+    Serial.print(".");
   }
 
   if (WiFi.status() != WL_CONNECTED) {
-    sendDebug("\n[!] WiFi connection failed. Restarting...\n");
+    Serial.print("\n[!] WiFi connection failed. Restarting...\n");
     ESP.restart();
   }
+
+  Serial.print("\n[✓] Connected | IP: ");
+  Serial.print(WiFi.localIP().toString().c_str());
+  Serial.print("\n");
+
+  udp.begin(udpPort);
+  wifiConnected = true;
+
+  delay(250);
 
   sendDebug("\n[✓] Connected | IP: ");
   sendDebug(WiFi.localIP().toString().c_str());
   sendDebug("\n");
-
-  udp.begin(udpPort);
-  wifiConnected = true;
+  sendDebug("READY\n");
 }
 
 #endif

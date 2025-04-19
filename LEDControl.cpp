@@ -124,12 +124,17 @@ void setLED(const char* label, bool state, uint8_t intensity) {
     if (it != ledMap.end()) {
         LEDMapping* led = it->second;
         switch(led->deviceType) {
+
             case DEVICE_GPIO:
                 pinMode(led->info.gpioInfo.gpio, OUTPUT);
-                if (led->dimmable)
-                    analogWrite(led->info.gpioInfo.gpio, map(intensity, 0, 100, 0, 255));
-                else
+                if (led->dimmable) {
+                    if (!state)
+                        analogWrite(led->info.gpioInfo.gpio, 0);  // TRUE OFF
+                    else
+                        analogWrite(led->info.gpioInfo.gpio, map(intensity, 0, 100, 0, 255));
+                } else {
                     digitalWrite(led->info.gpioInfo.gpio, state);
+                }
                 break;
 
             case DEVICE_PCA9555: {
@@ -156,7 +161,7 @@ void setLED(const char* label, bool state, uint8_t intensity) {
 
             case DEVICE_WS2812:
                 WS2812_setLEDColor(led->info.ws2812Info.index,
-                                  state ? CRGB::Green : CRGB::Green);
+                                  state ? CRGB::Green : CRGB::Black);
                 break;
         }
     } else {

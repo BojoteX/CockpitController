@@ -51,7 +51,7 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
     } else {
         uint8_t intensity = (value * 100UL) / max_value;
         if (intensity < 10) {
-            setLED(label, false);
+            setLED(label, false, 0);
         } else {
             if (intensity > 90) intensity = 100;
             setLED(label, true, intensity);

@@ -2,15 +2,7 @@
 // Dynamic I2C panel detection and configurable panel initialization
 
 // Helps debug problems, set both...
-// #define DEBUG_MODE
 bool DEBUG = false; // Needed for alternate debugPrint
-
-// Skips MAX3421 (we don't need it) as it causes an Adafruit error with latest ESP32 Core 3.2.0
-#define CFG_TUH_MAX3421 0
-extern "C" bool __atomic_test_and_set(volatile void* ptr, int memorder) __attribute__((weak));
-bool __atomic_test_and_set(volatile void* ptr, int memorder) {
-  return false; // pretend the lock was not already set
-}
 
 // -- Serial Configuration --
 #define BAUD_RATE 250000
@@ -27,6 +19,7 @@ bool __atomic_test_and_set(volatile void* ptr, int memorder) {
 #include "src/Globals.h"
 #include "src/DCSBIOSBridge.h"
 #include <Wire.h>
+// #include "Config.h"
 
 // Definitions for Panel Detection logic
 bool hasIR, hasLA, hasRA, hasCA, hasLockShoot, hasMasterARM, hasECM, hasBrain;
@@ -89,11 +82,6 @@ void setup() {
   hasECM = true;
   hasMasterARM = true;
 
-  debugPrintln("Initializing Panels....");
-  if (hasLA) LeftAnnunciator_init();
-  if (hasRA) RightAnnunciator_init();
-  if (hasIR) IRCool_init();
-
   // PCA9555 Expander Initialization
   debugPrintln("Initializing PCA9555 Inputs...");
   if (hasBrain) initPCA9555AsInput(0x26); //Assumes Brain controller connected
@@ -116,11 +104,14 @@ void setup() {
     Wire.endTransmission();
   }
 
-  // Initialize selected panels
-  debugPrintln("Initializing PCA Panels...");
+  debugPrintln("Initializing Panels....");
+  if (hasLA) LeftAnnunciator_init();
+  if (hasRA) RightAnnunciator_init();
+
+  if (hasIR) IRCool_init();
   if (hasECM) ECM_init();
   if (hasMasterARM) MasterARM_init();
-  
+
   // Active Panels for LED Initialization
   const char* activePanels[7];
   int panelCount = 0;
@@ -139,12 +130,12 @@ void setup() {
   DCSBIOS_init();
   debugPrintln("\nDCSBIOS Library Initialization Complete.\n");
 
-  #ifdef DEBUG_MODE
+  if(DEBUG) {
     enablePCA9555Logging(true);
     printLEDMenu();
     handleLEDSelection();
     debugPrintln("Exiting LED selection menu. Continuing execution...");
-  #endif
+  }
 
   debugPrintln("\nREADY\n");
 }
