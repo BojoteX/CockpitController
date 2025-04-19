@@ -16,37 +16,36 @@ public:
     }
 
     void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
-        static std::unordered_map<uint32_t, uint8_t> prev;
+        static std::unordered_map<const char*, uint16_t> prev;
 
-        for (uint8_t shift = 0; shift < 16; ++shift) {
-            uint16_t mask = (1 << shift);
-            uint8_t val = (value & mask) ? 1 : 0;
+        auto it = addressToEntries.find(addr);
+        if (it == addressToEntries.end()) return;
 
-            uint32_t key = dcsHash(addr, mask, shift);
-            auto it = DcsOutputHashTable.find(key);
-            if (it == DcsOutputHashTable.end()) continue;
+        for (const DcsOutputEntry* entry : it->second) {
+            uint16_t val = (value & entry->mask) >> entry->shift;
 
-            if (prev[key] == val) continue;
-            prev[key] = val;
+            if (prev[entry->label] == val) continue;
+            prev[entry->label] = val;
 
-            for (const char* label : it->second) {
-                debugPrintf("[MATCH] Label = %s → value = %d\n", label, val);
-                onLedChange(label, val);
-            }
+            onLedChange(entry->label, val, entry->max_value);
         }
     }
+    
 };
 
 DcsBiosSniffer mySniffer;
 
-void onLedChange(const char* label, unsigned int value) {
-    if (value == 1) {
-        setLED(label, true);
-    } else if (value == 0) {
-        setLED(label, false);
+void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
+    if (max_value <= 1) {
+        setLED(label, value > 0);
     } else {
-        uint8_t intensity = value * 100 / 65535;
-        setLED(label, true, intensity);
+        uint8_t intensity = (value * 100UL) / max_value;
+        if (intensity < 10) {
+            setLED(label, false);  // treat as OFF
+        } else {
+            if (intensity > 90) intensity = 100;
+            setLED(label, true, intensity);
+        }
     }
 }
 

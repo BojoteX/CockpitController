@@ -16,9 +16,6 @@ target_objects = [
     'Interior Lights Panel', 'APU Fire Warning Extinguisher Light'
 ]
 
-def dcs_hash(addr, mask, shift):
-    return ((addr << 16) ^ mask ^ (shift << 1)) & 0xFFFFFFFF
-
 # -------- LOAD LUA --------
 selector_value_map = {}
 with open(lua_file, "r", encoding="utf-8", errors="ignore") as f:
@@ -40,7 +37,7 @@ with open(lua_file, "r", encoding="utf-8", errors="ignore") as f:
 with open(json_file, encoding="utf-8") as f:
     data = json.load(f)
 
-output_hashmap = defaultdict(list)
+output_entries = []
 input_entries = []
 selector_info_comments = []
 
@@ -54,11 +51,16 @@ for panel, controls in data.items():
         outputs = item.get('outputs', [])
         desc = item.get('description', '').split(",")[0]
 
-        if ctype == "led" and outputs:
+        if outputs and (ctype == "led" or ctype == "limited_dial"):
             out = outputs[0]
             if all(k in out for k in ("address", "mask", "shift_by")):
-                h = dcs_hash(out['address'], out['mask'], out['shift_by'])
-                output_hashmap[h].append(ident)
+                output_entries.append({
+                    'label': ident,
+                    'addr': out['address'],
+                    'mask': out['mask'],
+                    'shift': out['shift_by'],
+                    'max_value': out.get("max_value", 1)
+                })
 
         if inputs:
             for inp in inputs:
@@ -81,30 +83,52 @@ for panel, controls in data.items():
 
 # -------- GENERATE HEADER --------
 with open(output_header_file, "w", encoding="utf-8") as f:
-    f.write("// Auto-generated DCSBIOS Data Mapping Header with Multi-label Fast Lookup\n")
+    f.write("// Auto-generated DCSBIOS Data Mapping Header using structured DcsOutputEntry\n")
     f.write("#pragma once\n\n")
-    f.write("#include <stdint.h>\n#include <unordered_map>\n#include <vector>\n\n")
+    f.write("#include <stdint.h>\n\n")
 
-    f.write("inline uint32_t dcsHash(uint16_t addr, uint16_t mask, uint8_t shift) {\n")
-    f.write("    return ((uint32_t)addr << 16) ^ (uint32_t)mask ^ ((uint32_t)shift << 1);\n")
-    f.write("}\n\n")
-
-    f.write("static const std::unordered_map<uint32_t, std::vector<const char*>> DcsOutputHashTable = {\n")
-    for h, labels in output_hashmap.items():
-        label_str = ', '.join(f'"{label}"' for label in labels)
-        f.write(f'    {{ 0x{h:08X}, {{ {label_str} }} }},\n')
+    f.write("struct DcsOutputEntry {\n")
+    f.write("    uint16_t addr;\n")
+    f.write("    uint16_t mask;\n")
+    f.write("    uint8_t shift;\n")
+    f.write("    uint16_t max_value;\n")
+    f.write("    const char* label;\n")
     f.write("};\n\n")
-    f.write("struct DcsInputEntry {\n    const char* label;\n    uint16_t max_value;\n    const char* description;\n};\n\n")
+
+    f.write("static const DcsOutputEntry DcsOutputTable[] = {\n")
+    for entry in output_entries:
+        f.write(f'    {{ 0x{entry["addr"]:04X}, 0x{entry["mask"]:04X}, {entry["shift"]}, {entry["max_value"]}, "{entry["label"]}" }},\n')
+    f.write("};\n\n")
+
+    f.write("static const size_t DcsOutputTableSize = sizeof(DcsOutputTable) / sizeof(DcsOutputTable[0]);\n\n")
+
+    from collections import defaultdict
+
+    # Group entries by address
+    addr_to_indices = defaultdict(list)
+    for i, entry in enumerate(output_entries):
+        addr_to_indices[entry["addr"]].append(i)
+
+    f.write("static const std::unordered_map<uint16_t, std::vector<const DcsOutputEntry*>> addressToEntries = {\n")
+    for addr, indices in addr_to_indices.items():
+        pointers = ', '.join(f'&DcsOutputTable[{i}]' for i in indices)
+        f.write(f'    {{ 0x{addr:04X}, {{ {pointers} }} }},\n')
+    f.write("};\n\n")
+
+    f.write("struct DcsInputEntry {\n")
+    f.write("    const char* label;\n")
+    f.write("    uint16_t max_value;\n")
+    f.write("    const char* description;\n")
+    f.write("};\n\n")
+
     f.write("static const DcsInputEntry DcsInputTable[] = {\n")
     for entry in input_entries:
-        label = entry["label"]
-        maxval = entry["max_value"]
         desc = entry["description"].replace('"', '\\"')
-        f.write(f'    {{ "{label}", {maxval}, "{desc}" }},\n')
+        f.write(f'    {{ "{entry["label"]}", {entry["max_value"]}, "{desc}" }},\n')
     f.write("};\n\n")
 
     f.write("// ---- Enhanced Selector Info (from LUA) ----\n")
     for comment in selector_info_comments:
         f.write(comment + "\n")
 
-print(f"[✓] Generated {output_header_file} with {len(output_hashmap)} output records and {len(input_entries)} input records.")
+print(f"[✓] Generated {output_header_file} with {len(output_entries)} output records and {len(input_entries)} input records.")

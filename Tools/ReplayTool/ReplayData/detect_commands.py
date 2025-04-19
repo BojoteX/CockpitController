@@ -1,113 +1,78 @@
 import json
-import time
+import re
 
-# Load LED_DEFINITIONS dynamically from FA-18C_hornet.json
-def load_led_definitions(json_path):
-    with open(json_path, "r") as f:
-        data = json.load(f)
-    led_defs = {}
-    for panel, controls in data.items():
-        for ident, item in controls.items():
-            if item.get("control_type", "").lower() == "led":
-                for out in item.get("outputs", []):
-                    addr = out.get("address")
-                    mask = out.get("mask")
-                    shift = out.get("shift_by")
-                    if addr is not None and mask is not None and shift is not None:
-                        if addr not in led_defs:
-                            led_defs[addr] = {}
-                        led_defs[addr][ident] = (mask, shift)
-    return led_defs
+# === CONFIGURATION ===
+HEADER_FILE = "DCSBIOSBridgeData.h"
+REPLAY_FILE = "DcsbiosReplayData.h"
 
-# Load stream from replay log JSON file
-def load_stream(file_path):
-    with open(file_path, "r") as f:
-        data = json.load(f)
-    stream_bytes = bytearray()
-    for item in data:
-        hex_str = item.get("data", "")
-        if hex_str:
-            stream_bytes.extend(bytes.fromhex(hex_str))
-    return stream_bytes
+# === Parse DCSBIOSBridgeData.h for output entries ===
+entry_pattern = re.compile(
+    r'\{\s*0x([0-9A-Fa-f]{4}),\s*0x([0-9A-Fa-f]{4}),\s*(\d+),\s*(\d+),\s*"([^"]+)"\s*\}'
+)
+entries = []
+with open(HEADER_FILE, "r") as f:
+    for line in f:
+        m = entry_pattern.search(line)
+        if m:
+            entries.append({
+                "address": int(m.group(1), 16),
+                "mask": int(m.group(2), 16),
+                "shift": int(m.group(3)),
+                "max_value": int(m.group(4)),
+                "label": m.group(5)
+            })
 
-if __name__ == "__main__":
-    LED_DEFINITIONS = load_led_definitions("FA-18C_hornet.json")
-    stream = load_stream("dcsbios_data.json")
+addr_to_entries = {}
+for entry in entries:
+    addr_to_entries.setdefault(entry["address"], []).append(entry)
 
-    frame_count = 0
-    frame_start_time = time.time()
-    frames_since_last_event = 0
-    led_state = {name: 0 for addr in LED_DEFINITIONS for name in LED_DEFINITIONS[addr]}
+# === Parse replayFrames[] from .h ===
+frame_pattern = re.compile(r'\{\s*([0-9.]+)f,\s*0x([0-9A-Fa-f]{4}),\s*0x([0-9A-Fa-f]{4})\s*\}')
+frames = []
+with open(REPLAY_FILE, "r") as f:
+    for line in f:
+        m = frame_pattern.search(line)
+        if m:
+            frames.append({
+                "delay": float(m.group(1)),
+                "address": int(m.group(2), 16),
+                "data": int(m.group(3), 16)
+            })
 
-    sync_bytes_seen = 0
-    current_address = 0
-    remaining_count = 0
-    current_word_low = 0
-    state = "WAIT_SYNC"
+# === Replay logic (ESP32 behavior) ===
+timeline = []
+prev = {}
+current_time = 0.0
 
-    for byte in stream:
-        if byte == 0x55:
-            sync_bytes_seen += 1
-        else:
-            sync_bytes_seen = 0
+for frame in frames:
+    current_time += frame["delay"]
+    addr = frame["address"]
+    data = frame["data"]
 
-        if sync_bytes_seen == 4:
-            sync_bytes_seen = 0
-            state = "ADDRESS_LOW"
-            frame_count += 1
-            continue
+    if addr not in addr_to_entries:
+        continue
 
-        if state == "WAIT_SYNC":
-            continue
+    for entry in addr_to_entries[addr]:
+        val = (data & entry["mask"]) >> entry["shift"]
+        label = entry["label"]
 
-        elif state == "ADDRESS_LOW":
-            current_address = byte
-            state = "ADDRESS_HIGH"
-
-        elif state == "ADDRESS_HIGH":
-            current_address |= (byte << 8)
-            if current_address == 0x5555:
-                state = "WAIT_SYNC"
-                sync_bytes_seen = 2
+        if prev.get(label, 0) != val:
+            prev[label] = val
+            if entry["max_value"] <= 1:
+                timeline.append(f"[{current_time:8.3f}s] [LED] {label} → {'ON' if val else 'OFF'}")
             else:
-                state = "COUNT_LOW"
+                intensity = (val * 100) // entry["max_value"]
+                if intensity < 10:
+                    timeline.append(f"[{current_time:8.3f}s] [LED] {label} → OFF")
+                else:
+                    if intensity > 90:
+                        intensity = 100
+                    timeline.append(f"[{current_time:8.3f}s] [LED] {label} → ON ({intensity}%)")
 
-        elif state == "COUNT_LOW":
-            remaining_count = byte
-            state = "COUNT_HIGH"
-
-        elif state == "COUNT_HIGH":
-            remaining_count |= (byte << 8)
-            if remaining_count == 0:
-                state = "WAIT_SYNC"
-            else:
-                state = "DATA_LOW"
-
-        elif state == "DATA_LOW":
-            current_word_low = byte
-            state = "DATA_HIGH"
-
-        elif state == "DATA_HIGH":
-            word_value = current_word_low | (byte << 8)
-
-            any_event_triggered = False
-            if current_address in LED_DEFINITIONS:
-                for led_name, (mask, shift) in LED_DEFINITIONS[current_address].items():
-                    bit_value = (word_value & mask) >> shift
-                    if bit_value != led_state[led_name]:
-                        if frames_since_last_event > 0:
-                            elapsed = time.time() - frame_start_time
-                            print(f"(No output for {frames_since_last_event} frame(s), {elapsed:.2f}s elapsed)")
-                            frame_start_time = time.time()
-                            frames_since_last_event = 0
-                        state_str = "ON" if bit_value else "OFF"
-                        print(f"Frame {frame_count}: [0x{current_address:04X}] {led_name} -> turned {state_str} (value={bit_value})")
-                        led_state[led_name] = bit_value
-                        any_event_triggered = True
-
-            if not any_event_triggered:
-                frames_since_last_event += 1
-
-            current_address += 2
-            remaining_count -= 2
-            state = "DATA_LOW" if remaining_count > 0 else "ADDRESS_LOW"
+# === Output ===
+print("\nDCSBIOS Replay Timeline:")
+print("-" * 60)
+for line in timeline:
+    print(line)
+print("-" * 60)
+print(f"[✓] Total events logged: {len(timeline)}")

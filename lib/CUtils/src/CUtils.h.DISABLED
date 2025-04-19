@@ -70,9 +70,7 @@ void tm1637_testPattern(TM1637Device& dev, const char* deviceName);
 
 // GN1640
 void GN1640_init(uint8_t clkPin, uint8_t dioPin);
-void GN1640_setLED(uint8_t row, uint8_t col, bool state);
-void GN1640_clear();
-void GN1640_tick();
+void GN1640_setLED(uint8_t column, uint8_t row, bool state);
 void GN1640_clearAll();
 void GN1640_allOff();
 void GN1640_allOn();

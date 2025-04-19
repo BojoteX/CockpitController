@@ -156,7 +156,7 @@ void setLED(const char* label, bool state, uint8_t intensity) {
 
             case DEVICE_WS2812:
                 WS2812_setLEDColor(led->info.ws2812Info.index,
-                                  state ? CRGB::White : CRGB::Black);
+                                  state ? CRGB::Green : CRGB::Green);
                 break;
         }
     } else {

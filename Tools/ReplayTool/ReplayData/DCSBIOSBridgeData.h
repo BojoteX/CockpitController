@@ -1,64 +1,94 @@
-// Auto-generated DCSBIOS Data Mapping Header with Multi-label Fast Lookup
+// Auto-generated DCSBIOS Data Mapping Header using structured DcsOutputEntry
 #pragma once
 
 #include <stdint.h>
-#include <unordered_map>
-#include <vector>
 
-inline uint32_t dcsHash(uint16_t addr, uint16_t mask, uint8_t shift) {
-    return ((uint32_t)addr << 16) ^ (uint32_t)mask ^ ((uint32_t)shift << 1);
-}
+struct DcsOutputEntry {
+    uint16_t addr;
+    uint16_t mask;
+    uint8_t shift;
+    uint16_t max_value;
+    const char* label;
+};
 
-static const std::unordered_map<uint32_t, std::vector<const char*>> DcsOutputHashTable = {
-    { 0x740C0000, { "FIRE_APU_LT", "RH_ADV_SPARE_RH5" } },
-    { 0x74A40110, { "CLIP_APU_ACC_LT" } },
-    { 0x74A40212, { "CLIP_BATT_SW_LT" } },
-    { 0x74A0801E, { "CLIP_CK_SEAT_LT" } },
-    { 0x74A4401C, { "CLIP_FCES_LT" } },
-    { 0x74A40414, { "CLIP_FCS_HOT_LT" } },
-    { 0x74A4201A, { "CLIP_FUEL_LO_LT" } },
-    { 0x74A40816, { "CLIP_GEN_TIE_LT" } },
-    { 0x74A80110, { "CLIP_L_GEN_LT" } },
-    { 0x74A80212, { "CLIP_R_GEN_LT" } },
-    { 0x74A41018, { "CLIP_SPARE_CTN1_LT" } },
-    { 0x74A4801E, { "CLIP_SPARE_CTN2_LT" } },
-    { 0x74A80414, { "CLIP_SPARE_CTN3_LT" } },
-    { 0x74D4801E, { "CMSD_JET_SEL_L" } },
-    { 0x740A000E, { "LH_ADV_ASPJ_OH" } },
-    { 0x740A0018, { "LH_ADV_GO" } },
-    { 0x740A0000, { "LH_ADV_L_BAR_GREEN", "LH_ADV_XMIT" } },
-    { 0x7408801E, { "LH_ADV_L_BAR_RED" } },
-    { 0x74080816, { "LH_ADV_L_BLEED" } },
-    { 0x740A002A, { "LH_ADV_NO_GO" } },
-    { 0x740A0001, { "LH_ADV_REC" } },
-    { 0x74081018, { "LH_ADV_R_BLEED" } },
-    { 0x7408201A, { "LH_ADV_SPD_BRK" } },
-    { 0x7408401C, { "LH_ADV_STBY" } },
-    { 0x7408004C, { "FIRE_LEFT_LT" } },
-    { 0x74080001, { "LS_LOCK" } },
-    { 0x74080000, { "LS_SHOOT", "LS_SHOOT_STROBE" } },
-    { 0x742A0816, { "SPIN_LT" } },
-    { 0x740C0212, { "MASTER_MODE_AA_LT" } },
-    { 0x740C0414, { "MASTER_MODE_AG_LT" } },
-    { 0x740C401C, { "MC_DISCH" } },
-    { 0x740C801E, { "MC_READY" } },
-    { 0x74080212, { "MASTER_CAUTION_LT" } },
-    { 0x740A0816, { "RH_ADV_AAA" } },
-    { 0x740A0414, { "RH_ADV_AI" } },
-    { 0x740A1018, { "RH_ADV_CW" } },
-    { 0x740A0110, { "RH_ADV_DISP" } },
-    { 0x740A008E, { "RH_ADV_RCDR_ON" } },
-    { 0x740A0212, { "RH_ADV_SAM" } },
-    { 0x740A201A, { "RH_ADV_SPARE_RH1" } },
-    { 0x740A401C, { "RH_ADV_SPARE_RH2" } },
-    { 0x740A801E, { "RH_ADV_SPARE_RH3" } },
-    { 0x740C0001, { "RH_ADV_SPARE_RH4" } },
-    { 0x740C0018, { "FIRE_RIGHT_LT" } },
+static const DcsOutputEntry DcsOutputTable[] = {
+    { 0x740C, 0x0004, 2, 1, "FIRE_APU_LT" },
+    { 0x74A4, 0x0100, 8, 1, "CLIP_APU_ACC_LT" },
+    { 0x74A4, 0x0200, 9, 1, "CLIP_BATT_SW_LT" },
+    { 0x74A0, 0x8000, 15, 1, "CLIP_CK_SEAT_LT" },
+    { 0x74A4, 0x4000, 14, 1, "CLIP_FCES_LT" },
+    { 0x74A4, 0x0400, 10, 1, "CLIP_FCS_HOT_LT" },
+    { 0x74A4, 0x2000, 13, 1, "CLIP_FUEL_LO_LT" },
+    { 0x74A4, 0x0800, 11, 1, "CLIP_GEN_TIE_LT" },
+    { 0x74A8, 0x0100, 8, 1, "CLIP_L_GEN_LT" },
+    { 0x74A8, 0x0200, 9, 1, "CLIP_R_GEN_LT" },
+    { 0x74A4, 0x1000, 12, 1, "CLIP_SPARE_CTN1_LT" },
+    { 0x74A4, 0x8000, 15, 1, "CLIP_SPARE_CTN2_LT" },
+    { 0x74A8, 0x0400, 10, 1, "CLIP_SPARE_CTN3_LT" },
+    { 0x74D4, 0x8000, 15, 1, "CMSD_JET_SEL_L" },
+    { 0x754A, 0xFFFF, 0, 65535, "CHART_DIMMER" },
+    { 0x7544, 0xFFFF, 0, 65535, "CONSOLES_DIMMER" },
+    { 0x7548, 0xFFFF, 0, 65535, "FLOOD_DIMMER" },
+    { 0x7546, 0xFFFF, 0, 65535, "INST_PNL_DIMMER" },
+    { 0x754C, 0xFFFF, 0, 65535, "WARN_CAUTION_DIMMER" },
+    { 0x740A, 0x0008, 3, 1, "LH_ADV_ASPJ_OH" },
+    { 0x740A, 0x0010, 4, 1, "LH_ADV_GO" },
+    { 0x740A, 0x0002, 1, 1, "LH_ADV_L_BAR_GREEN" },
+    { 0x7408, 0x8000, 15, 1, "LH_ADV_L_BAR_RED" },
+    { 0x7408, 0x0800, 11, 1, "LH_ADV_L_BLEED" },
+    { 0x740A, 0x0020, 5, 1, "LH_ADV_NO_GO" },
+    { 0x740A, 0x0001, 0, 1, "LH_ADV_REC" },
+    { 0x7408, 0x1000, 12, 1, "LH_ADV_R_BLEED" },
+    { 0x7408, 0x2000, 13, 1, "LH_ADV_SPD_BRK" },
+    { 0x7408, 0x4000, 14, 1, "LH_ADV_STBY" },
+    { 0x740A, 0x0004, 2, 1, "LH_ADV_XMIT" },
+    { 0x7408, 0x0040, 6, 1, "FIRE_LEFT_LT" },
+    { 0x7408, 0x0001, 0, 1, "LS_LOCK" },
+    { 0x7408, 0x0002, 1, 1, "LS_SHOOT" },
+    { 0x7408, 0x0004, 2, 1, "LS_SHOOT_STROBE" },
+    { 0x7456, 0xFFFF, 0, 65535, "HMD_OFF_BRT" },
+    { 0x742A, 0x0800, 11, 1, "SPIN_LT" },
+    { 0x740C, 0x0200, 9, 1, "MASTER_MODE_AA_LT" },
+    { 0x740C, 0x0400, 10, 1, "MASTER_MODE_AG_LT" },
+    { 0x740C, 0x4000, 14, 1, "MC_DISCH" },
+    { 0x740C, 0x8000, 15, 1, "MC_READY" },
+    { 0x7408, 0x0200, 9, 1, "MASTER_CAUTION_LT" },
+    { 0x740A, 0x0800, 11, 1, "RH_ADV_AAA" },
+    { 0x740A, 0x0400, 10, 1, "RH_ADV_AI" },
+    { 0x740A, 0x1000, 12, 1, "RH_ADV_CW" },
+    { 0x740A, 0x0100, 8, 1, "RH_ADV_DISP" },
+    { 0x740A, 0x0080, 7, 1, "RH_ADV_RCDR_ON" },
+    { 0x740A, 0x0200, 9, 1, "RH_ADV_SAM" },
+    { 0x740A, 0x2000, 13, 1, "RH_ADV_SPARE_RH1" },
+    { 0x740A, 0x4000, 14, 1, "RH_ADV_SPARE_RH2" },
+    { 0x740A, 0x8000, 15, 1, "RH_ADV_SPARE_RH3" },
+    { 0x740C, 0x0001, 0, 1, "RH_ADV_SPARE_RH4" },
+    { 0x740C, 0x0002, 1, 1, "RH_ADV_SPARE_RH5" },
+    { 0x740C, 0x0010, 4, 1, "FIRE_RIGHT_LT" },
+};
+
+static const size_t DcsOutputTableSize = sizeof(DcsOutputTable) / sizeof(DcsOutputTable[0]);
+
+static const std::unordered_map<uint16_t, std::vector<const DcsOutputEntry*>> addressToEntries = {
+    { 0x740C, { &DcsOutputTable[0], &DcsOutputTable[36], &DcsOutputTable[37], &DcsOutputTable[38], &DcsOutputTable[39], &DcsOutputTable[50], &DcsOutputTable[51], &DcsOutputTable[52] } },
+    { 0x74A4, { &DcsOutputTable[1], &DcsOutputTable[2], &DcsOutputTable[4], &DcsOutputTable[5], &DcsOutputTable[6], &DcsOutputTable[7], &DcsOutputTable[10], &DcsOutputTable[11] } },
+    { 0x74A0, { &DcsOutputTable[3] } },
+    { 0x74A8, { &DcsOutputTable[8], &DcsOutputTable[9], &DcsOutputTable[12] } },
+    { 0x74D4, { &DcsOutputTable[13] } },
+    { 0x754A, { &DcsOutputTable[14] } },
+    { 0x7544, { &DcsOutputTable[15] } },
+    { 0x7548, { &DcsOutputTable[16] } },
+    { 0x7546, { &DcsOutputTable[17] } },
+    { 0x754C, { &DcsOutputTable[18] } },
+    { 0x740A, { &DcsOutputTable[19], &DcsOutputTable[20], &DcsOutputTable[21], &DcsOutputTable[24], &DcsOutputTable[25], &DcsOutputTable[29], &DcsOutputTable[41], &DcsOutputTable[42], &DcsOutputTable[43], &DcsOutputTable[44], &DcsOutputTable[45], &DcsOutputTable[46], &DcsOutputTable[47], &DcsOutputTable[48], &DcsOutputTable[49] } },
+    { 0x7408, { &DcsOutputTable[22], &DcsOutputTable[23], &DcsOutputTable[26], &DcsOutputTable[27], &DcsOutputTable[28], &DcsOutputTable[30], &DcsOutputTable[31], &DcsOutputTable[32], &DcsOutputTable[33], &DcsOutputTable[40] } },
+    { 0x7456, { &DcsOutputTable[34] } },
+    { 0x742A, { &DcsOutputTable[35] } },
 };
 
 struct DcsInputEntry {
     const char* label;
-    uint8_t max_value;
+    uint16_t max_value;
     const char* description;
 };
 

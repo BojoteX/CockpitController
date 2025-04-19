@@ -20,7 +20,7 @@ LEDMapping panelLEDs[] = {
   {"ALL_PANELS_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
 
   // GPIO LEDs
-  {"BKLT_PANELS", DEVICE_GPIO, {.gpioInfo = {6}}, true},
+  {"INST_PNL_DIMMER", DEVICE_GPIO, {.gpioInfo = {6}}, true},
   {"SPIN_LT", DEVICE_GPIO, {.gpioInfo = {34}}, false},
 
   // PCA9555 LEDs

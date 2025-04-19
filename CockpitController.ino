@@ -1,6 +1,10 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
+// Helps debug problems, set both...
+// #define DEBUG_MODE
+bool DEBUG = false; // Needed for alternate debugPrint
+
 // Skips MAX3421 (we don't need it) as it causes an Adafruit error with latest ESP32 Core 3.2.0
 #define CFG_TUH_MAX3421 0
 extern "C" bool __atomic_test_and_set(volatile void* ptr, int memorder) __attribute__((weak));
@@ -8,17 +12,9 @@ bool __atomic_test_and_set(volatile void* ptr, int memorder) {
   return false; // pretend the lock was not already set
 }
 
-#include "Adafruit_TinyUSB.h"
-Adafruit_USBD_CDC usb_cdc;
-
 // -- Serial Configuration --
 #define BAUD_RATE 250000
 #define SERIAL_STARTUP_DELAY 3000      // Delay (ms) allowing Serial Monitor to connect
-#define Serial usb_cdc
-
-// Helps debug problems, set both...
-// #define DEBUG_MODE
-bool DEBUG = false; // Needed for alternate debugPrint
 
 // -- GPIO Pin Configuration --
 #define SDA_PIN 8                      // I2C Data Pin
@@ -156,6 +152,10 @@ void setup() {
 // Arduino Loop Routine
 void loop() {
   if (!isModeSelectorDCS()) HIDManager_keepAlive();
+
+  // Shadow buffer implementation for Caution Advisory to guarantee row-coherent updates 
+  // Solves problem with matrix scanning and partial row writes
+  if (hasCA) GN1640_tick();
 
   if (hasLA) LeftAnnunciator_loop();
   if (hasRA) RightAnnunciator_loop();

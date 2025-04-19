@@ -5,12 +5,6 @@
 //
 // **************************************************************
 
-// ---- GN1640 Buffered State ----
-static uint8_t rowShadow[8] = {0};  // desired state
-static uint8_t rowActive[8] = {0};  // current hardware state
-static bool refreshPending = false;
-static unsigned long lastUpdateTime = 0;
-
 // Mutex for GN1640 access
 portMUX_TYPE gn1640_mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -70,26 +64,14 @@ void GN1640_init(uint8_t clkPin, uint8_t dioPin) {
   GN1640_command(0x8F); // <-- Maximum brightness here!
 }
 
-void GN1640_setLED(uint8_t row, uint8_t col, bool state) {
-  if (row > 7 || col > 7) return;
+void GN1640_setLED(uint8_t column, uint8_t row, bool state) {
+  GN1640_command(0x44); // CRITICAL: explicitly set fixed-address mode
 
-  uint8_t bit = (1 << col);
-  bool changed = false;
-
-  if (state && !(rowShadow[row] & bit)) {
-    rowShadow[row] |= bit;
-    changed = true;
-  } else if (!state && (rowShadow[row] & bit)) {
-    rowShadow[row] &= ~bit;
-    changed = true;
-  }
-
-  if (changed) {
-    refreshPending = true;
-    lastUpdateTime = millis();
-  }
+  GN1640_startCondition();
+  GN1640_sendByte(0xC0 | column);
+  GN1640_sendByte(state ? (1 << row) : 0x00);
+  GN1640_stopCondition();
 }
-
 
 void GN1640_write(uint8_t column, uint8_t value) {
 
@@ -170,30 +152,4 @@ void GN1640_testPattern() {
 void GN1640_setAllLEDs(bool state) {
     if (state) GN1640_allOn();
     else GN1640_allOff();
-}
-
-void GN1640_clear() {
-  for (uint8_t row = 0; row < 8; row++) {
-    rowShadow[row] = 0;
-    rowActive[row] = 255;  // Force flush
-  }
-  refreshPending = true;
-  lastUpdateTime = millis();
-}
-
-void GN1640_tick() {
-  if (!refreshPending) return;
-  if (millis() - lastUpdateTime < 2) return;
-
-  for (uint8_t row = 0; row < 8; row++) {
-    if (rowShadow[row] != rowActive[row]) {
-      GN1640_startCondition();
-      GN1640_sendByte(0xC0 | row);
-      GN1640_sendByte(rowShadow[row]);
-      GN1640_stopCondition();
-      rowActive[row] = rowShadow[row];
-    }
-  }
-
-  refreshPending = false;
 }
