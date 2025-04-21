@@ -1,8 +1,14 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
-// Helps debug problems, set both...
-bool DEBUG = false; // Needed for alternate debugPrint
+// See that file first to enable WiFI debug or replay mode (simulating a stream from DCS)
+#include "Config.h"
+
+// Helps debug problems (To DEBUG over WiFi via UDP see Config.h)
+bool DEBUG = true; // Needed for alternate debugPrint
+
+// Init panel flags
+bool hasCA, hasLA, hasRA, hasIR, hasLockShoot, hasBrain, hasECM, hasMasterARM;
 
 // -- Serial Configuration --
 #define BAUD_RATE 250000
@@ -19,10 +25,9 @@ bool DEBUG = false; // Needed for alternate debugPrint
 #include "src/Globals.h"
 #include "src/DCSBIOSBridge.h"
 #include <Wire.h>
-// #include "Config.h"
 
 // Definitions for Panel Detection logic
-bool hasIR, hasLA, hasRA, hasCA, hasLockShoot, hasMasterARM, hasECM, hasBrain;
+// bool hasIR, hasLA, hasRA, hasCA, hasLockShoot, hasMasterARM, hasECM, hasBrain;
 
 // is DCS connected?
 bool dcsConnected = false; 
@@ -73,34 +78,38 @@ void setup() {
   // Show PCA Panels we discovered
   printDiscoveredPanels();
 
-  // Force Panels
-  hasLockShoot = true;
-  hasCA = true;
-  hasLA = true;
-  hasRA = true;
-  hasIR = true;
-  hasECM = true;
-  hasMasterARM = true;
+  // Choose panels that are present only (PCA Panels are detected automatically)
+  hasCA = false;        // Caution Advisory Panel
+  hasLA = true;         // Left Annunciator
+  hasRA = false;        // Right Annunciator
+  hasIR = false;        // IR Cool Panel
+  hasLockShoot = false; // LockShoot Panel
 
-  // PCA9555 Expander Initialization
-  debugPrintln("Initializing PCA9555 Inputs...");
-  if (hasBrain) initPCA9555AsInput(0x26); //Assumes Brain controller connected
-  if (hasECM) initPCA9555AsInput(0x22);
-  if (hasMasterARM) initPCA9555AsInput(0x5B);
+  // Automatic PCA Panel detection (use the i2c scanner to get addresses)
+  hasBrain     = discoveredDevices.count(0x26); // Brain Controller
+  hasECM       = discoveredDevices.count(0x22); // ECM Panel
+  hasMasterARM = discoveredDevices.count(0x5B); // Master ARM
+
+  if(hasBrain) debugPrintln("Brain Controller detected");
+  if(hasECM) debugPrintln("ECM Panel detected");
+  if(hasMasterARM) debugPrintln("Master ARM Panel detected");
+
+  debugPrintln("Initializing available PCA9555 Inputs...");
+  for (const auto& [addr, label] : discoveredDevices) {
+    initPCA9555AsInput(addr);
+  }
 
   // Initialize PCA9555 Cached Port States explicitly to OFF (active-low LEDs)
   debugPrintln("Initializing PCA9555 Cached Port States...");
-  uint8_t pcaAddresses[] = {0x26, 0x22, 0x5B};
-  for (int i = 0; i < sizeof(pcaAddresses); i++) {
-    uint8_t addr = pcaAddresses[i];
-    PCA9555_cachedPortStates[addr][0] = 0xFF;  // Port 0 all OFF (active-low LEDs)
-    PCA9555_cachedPortStates[addr][1] = 0xFF;  // Port 1 all OFF (active-low LEDs)
+  for (auto const& device : discoveredDevices) {
+    uint8_t addr = device.first;
+    PCA9555_cachedPortStates[addr][0] = 0xFF;
+    PCA9555_cachedPortStates[addr][1] = 0xFF;
 
-    // Write these initial states explicitly to hardware
     Wire.beginTransmission(addr);
-    Wire.write(0x02); // Output Port 0 register
-    Wire.write(0xFF); // All OFF (active-low LEDs)
-    Wire.write(0xFF); // Port 1 All OFF (active-low LEDs)
+    Wire.write(0x02);
+    Wire.write(0xFF);
+    Wire.write(0xFF);
     Wire.endTransmission();
   }
 
@@ -108,6 +117,7 @@ void setup() {
   if (hasLA) LeftAnnunciator_init();
   if (hasRA) RightAnnunciator_init();
 
+  debugPrintln("Initializing PCA Panels....");
   if (hasIR) IRCool_init();
   if (hasECM) ECM_init();
   if (hasMasterARM) MasterARM_init();
@@ -127,17 +137,21 @@ void setup() {
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
 
-  DCSBIOS_init();
-  debugPrintln("\nDCSBIOS Library Initialization Complete.\n");
-
   if(DEBUG) {
-    enablePCA9555Logging(true);
+    enablePCA9555Logging(1);
     printLEDMenu();
     handleLEDSelection();
     debugPrintln("Exiting LED selection menu. Continuing execution...");
+    debugPrintln("DEBUG mode is ENABLED");
+  }
+  else {
+    enablePCA9555Logging(0);
   }
 
-  debugPrintln("\nREADY\n");
+  DCSBIOS_init();
+
+  // Ready to go!
+  debugPrintln("Device is now ready!\n");
 }
 
 // Arduino Loop Routine
@@ -155,12 +169,19 @@ void loop() {
   if (hasECM) ECM_loop();
   if (hasMasterARM) MasterARM_loop();
 
-  // PCA9555 Logging (only used when building our own masks/detecting bit position/port for PCA)
   if (isPCA9555LoggingEnabled()) {
-    byte p0, p1;
-    if (hasBrain) readPCA9555(0x26, p0, p1);
-    if (hasECM) readPCA9555(0x22, p0, p1);
-    if (hasMasterARM) readPCA9555(0x5B, p0, p1);
+    if (hasBrain) {
+        byte p0, p1;
+        readPCA9555(0x26, p0, p1);
+    }
+    if (hasECM) {
+        byte p0, p1;
+        readPCA9555(0x22, p0, p1);
+    }
+    if (hasMasterARM) {
+        byte p0, p1;
+        readPCA9555(0x5B, p0, p1);
+    }
   }
 
   // DCS-BIOS Bridge loop

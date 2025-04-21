@@ -13,7 +13,10 @@
 // All LED Mappings
 #include "LEDMappings.h"
 
-// Your Controller Assignments and Bitmasks
-#include "ButtonMappings.h"
+// Your Controller Assignments and Bitmasks (OLD Legacy)
+// #include "ButtonMappings.h"
+
+// Your Controller Assignments and Bitmasks (New System)
+#include "InputMapping.h"
 
 #endif // MAPPINGS_H

@@ -3,6 +3,24 @@ portMUX_TYPE pca9555_mux = portMUX_INITIALIZER_UNLOCKED;
 
 bool loggingEnabled = false;
 
+// static const char* resolveInputLabel(uint8_t addr, uint8_t port, uint8_t bit);
+static const char* resolveInputLabel(uint8_t addr, uint8_t port, uint8_t bit) {
+  char deviceName[20];
+  snprintf(deviceName, sizeof(deviceName), "PCA_0x%02X", addr);
+  for (size_t i = 0; i < InputMappingSize; ++i) {
+    const InputMapping& m = InputMappings[i];
+    if (!m.source) continue;
+    if (strcmp(m.source, deviceName) == 0 && m.port == port && m.bit == bit) {
+      return m.label;
+    }
+  }
+  return nullptr;
+}
+
+static bool isInputBitMapped(uint8_t addr, uint8_t port, uint8_t bit) {
+  return resolveInputLabel(addr, port, bit) != nullptr;
+}
+
 void PCA9555_setAllLEDs(bool state) {
   for (int i = 0; i < panelLEDsCount; i++) {
     if (panelLEDs[i].deviceType == DEVICE_PCA9555) {
@@ -80,17 +98,6 @@ static byte prevPort1Cache[8];
 static uint8_t addrCache[8];
 static uint8_t cacheSize = 0;
 
-bool isBitPartOfMappedCombo(uint8_t addr, uint8_t port, uint8_t bit) {
-  for (size_t i = 0; i < mappedComboCount; i++) {
-    if (mappedCombos[i].i2cAddress == addr &&
-        mappedCombos[i].port == port &&
-        mappedCombos[i].bit == bit) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void PCA9555_autoInitFromLEDMap(uint8_t addr) {
     uint8_t configPort0 = 0xFF; // Initially, all INPUTS
     uint8_t configPort1 = 0xFF; // Initially, all INPUTS
@@ -144,19 +151,6 @@ void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
     Wire.write(reg);
     Wire.write(dataToSend);
     Wire.endTransmission();
-}
-
-void printMappedBitName(uint8_t addr, uint8_t port, uint8_t bit) {
-  for (size_t i = 0; i < mappedComboCount; i++) {
-    if (mappedCombos[i].i2cAddress == addr &&
-        mappedCombos[i].port == port &&
-        mappedCombos[i].bit == bit) {
-      	debugPrint(" → ");
-      	debugPrint(mappedCombos[i].name);
-      return;
-    }
-  }
-  debugPrint(" → UnknownName?");
 }
 
 void initPCA9555AsInput(uint8_t addr) {
@@ -216,15 +210,24 @@ bool readPCA9555(uint8_t address, byte &port0, byte &port1) {
         tmpPort0 = Wire.read();
         tmpPort1 = Wire.read();
 
-        // ONLY protect the shared variables assignment
-        portENTER_CRITICAL(&pca9555_mux);
         port0 = tmpPort0;
         port1 = tmpPort1;
-        portEXIT_CRITICAL(&pca9555_mux);
+
+        // NOW CALL LOGGER IF CHANGED
+        if (isPCA9555LoggingEnabled() && shouldLogChange(address, port0, port1)) {
+            logPCA9555State(address, port0, port1);
+        }
 
         return true;
     }
     return false;
+}
+
+inline const char* resolvePanelName(const char* source) {
+  if (strstr(source, "0x22")) return "ECM";
+  if (strstr(source, "0x26")) return "IR COOL";
+  if (strstr(source, "0x5B")) return "Master ARM";
+  return "UNKNOWN_PANEL";
 }
 
 void enablePCA9555Logging(bool enable) {
@@ -235,6 +238,18 @@ bool isPCA9555LoggingEnabled() {
   return loggingEnabled;
 }
 
+void logExpanderState(uint8_t p0, uint8_t p1) {
+  Serial.print(F(" → [ p0:"));
+  for (int8_t b = 6; b >= 0; --b) {
+    Serial.print((p0 >> b) & 1);
+  }
+  Serial.print(F(" | p1:"));
+  for (int8_t b = 6; b >= 0; --b) {
+    Serial.print((p1 >> b) & 1);
+  }
+  Serial.print(" ]");
+}
+
 void logPCA9555State(uint8_t address, byte port0, byte port1) {
   int idx = getCacheIndex(address);
   if (idx < 0) return;
@@ -242,49 +257,71 @@ void logPCA9555State(uint8_t address, byte port0, byte port1) {
   byte prev0 = prevPort0Cache[idx];
   byte prev1 = prevPort1Cache[idx];
 
+  bool printedNewLine = false;
+
   for (int b = 0; b < 8; b++) {
     if (bitRead(prev0, b) != bitRead(port0, b)) {
-      if (!isBitPartOfMappedCombo(address, 0, b)) {
-        debugPrint("⚡PCA 0x");
-        debugPrint(address, HEX);
-        debugPrint(" Port0 Bit ");
+      const char* label = resolveInputLabel(address, 0, b);
+
+      debugPrint("⚡PCA 0x");
+      debugPrint(address, HEX);
+      logExpanderState(port0, port1);
+      debugPrint(" ");
+
+      if (!label) {
+        debugPrint("→ Port0 Bit ");
         debugPrint(b);
         debugPrint(" ");
         debugPrint(bitRead(port0, b) ? "HIGH → " : "LOW → ");
-        debugPrintln("❌ Not mapped");
+        debugPrint("❌ Not mapped");
       } else {
         debugPrint("⚠️ CRITICAL LOGIC ERROR: Bit ");
         debugPrint(b);
-        printMappedBitName(address, 0, b);
+        debugPrint(" → ");
+        debugPrint(label);
         debugPrint(" on PCA 0x");
         debugPrint(address, HEX);
-        debugPrintln(" is mapped but triggered no action 🤖💥");
+        debugPrint(" is mapped but triggered no action 🤖💥");
       }
+
+      printedNewLine = true;
     }
   }
 
   for (int b = 0; b < 8; b++) {
     if (bitRead(prev1, b) != bitRead(port1, b)) {
-      if (!isBitPartOfMappedCombo(address, 1, b)) {
-        debugPrint("⚡PCA 0x");
-        debugPrint(address, HEX);
-        debugPrint(" Port1 Bit ");
+      const char* label = resolveInputLabel(address, 1, b);
+
+      if (printedNewLine) debugPrintln("");
+
+      debugPrint("⚡PCA 0x");
+      debugPrint(address, HEX);
+      logExpanderState(port0, port1);
+      debugPrint(" ");
+
+      if (!label) {
+        debugPrint("→ Port1 Bit ");
         debugPrint(b);
         debugPrint(" ");
         debugPrint(bitRead(port1, b) ? "HIGH → " : "LOW → ");
-        debugPrintln("❌ Not mapped");
+        debugPrint("❌ Not mapped");
       } else {
         debugPrint("⚠️ CRITICAL LOGIC ERROR: Bit ");
         debugPrint(b);
-        printMappedBitName(address, 1, b);
+        debugPrint(" → ");
+        debugPrint(label);
         debugPrint(" on PCA 0x");
         debugPrint(address, HEX);
-        debugPrintln(" is mapped but triggered no action 🤖💥");
+        debugPrint(" is mapped but triggered no action 🤖💥");
       }
+
+      printedNewLine = true;
     }
   }
 
-  // 🔄 Actualizar cache al final
+  debugPrintln("");
+
+  // 🔄 Update cache
   prevPort0Cache[idx] = port0;
   prevPort1Cache[idx] = port1;
 }

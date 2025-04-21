@@ -26,10 +26,10 @@ enum Port0Bits {
   AUX_REL = 1,              // 2-position switch
   DISPENSER_BYPASS = 2,     // 3-position group
   DISPENSER_OFF = 3,
-  EMC_OFF = 4,              // EMC rotary selector (4-pos group)
-  EMC_STBY = 5,
-  EMC_BIT = 6,
-  EMC_REC = 7
+  ECM_OFF = 4,              // EMC rotary selector (4-pos group)
+  ECM_STBY = 5,
+  ECM_BIT = 6,
+  ECM_REC = 7
 };
 
 // Initializes panel by reading its current state and deferring USB report
@@ -58,16 +58,16 @@ void ECM_init() {
     );
 
     // EMC Selector (4-pos rotary via 4 bits)
-    if (!bitRead(port0, EMC_OFF))
-      HIDManager_setNamedButton("EMC_SELECTOR_OFF", true);
-    else if (!bitRead(port0, EMC_STBY))
-      HIDManager_setNamedButton("EMC_SELECTOR_STBY", true);
-    else if (!bitRead(port0, EMC_BIT))
-      HIDManager_setNamedButton("EMC_SELECTOR_BIT", true);
-    else if (!bitRead(port0, EMC_REC))
-      HIDManager_setNamedButton("EMC_SELECTOR_REC", true);
+    if (!bitRead(port0, ECM_OFF))
+      HIDManager_setNamedButton("ECM_MODE_SW_OFF", true);
+    else if (!bitRead(port0, ECM_STBY))
+      HIDManager_setNamedButton("ECM_MODE_SW_STBY", true);
+    else if (!bitRead(port0, ECM_BIT))
+      HIDManager_setNamedButton("ECM_MODE_SW_BIT", true);
+    else if (!bitRead(port0, ECM_REC))
+      HIDManager_setNamedButton("ECM_MODE_SW_REC", true);
     else if (!bitRead(port1, 0))
-      HIDManager_setNamedButton("EMC_SELECTOR_XMIT", true);
+      HIDManager_setNamedButton("ECM_MODE_SW_XMIT", true);
 
     // Commit all deferred button reports at once
     HIDManager_commitDeferredReport();
@@ -106,20 +106,20 @@ void ECM_loop() {
   }
 
   // EMC rotary selector (OFF / STBY / BIT / REC / XMIT)
-  for (int bit = EMC_OFF; bit <= EMC_REC; bit++) {
+  for (int bit = ECM_OFF; bit <= ECM_REC; bit++) {
     if (bitRead(prevECMPort0, bit) != bitRead(port0, bit)) {
       switch (bit) {
-        case EMC_OFF:
-          if (!bitRead(port0, EMC_OFF)) HIDManager_setNamedButton("EMC_SELECTOR_OFF");
+        case ECM_OFF:
+          if (!bitRead(port0, ECM_OFF)) HIDManager_setNamedButton("ECM_MODE_SW_OFF");
           break;
-        case EMC_STBY:
-          if (!bitRead(port0, EMC_STBY)) HIDManager_setNamedButton("EMC_SELECTOR_STBY");
+        case ECM_STBY:
+          if (!bitRead(port0, ECM_STBY)) HIDManager_setNamedButton("ECM_MODE_SW_STBY");
           break;
-        case EMC_BIT:
-          if (!bitRead(port0, EMC_BIT)) HIDManager_setNamedButton("EMC_SELECTOR_BIT");
+        case ECM_BIT:
+          if (!bitRead(port0, ECM_BIT)) HIDManager_setNamedButton("ECM_MODE_SW_BIT");
           break;
-        case EMC_REC:
-          if (!bitRead(port0, EMC_REC)) HIDManager_setNamedButton("EMC_SELECTOR_REC");
+        case ECM_REC:
+          if (!bitRead(port0, ECM_REC)) HIDManager_setNamedButton("ECM_MODE_SW_REC");
           break;
       }
     }
@@ -128,7 +128,7 @@ void ECM_loop() {
   // EMC XMIT (bit 0 of PORT1, not used by REC in this revision)
   if (bitRead(prevECMPort1, 0) != bitRead(port1, 0)) {
     if (!bitRead(port1, 0)) {
-      HIDManager_setNamedButton("EMC_SELECTOR_XMIT");
+      HIDManager_setNamedButton("ECM_MODE_SW_XMIT");
     }
   }
 

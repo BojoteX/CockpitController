@@ -50,73 +50,99 @@ void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
     }
     debugPrintln("✅ LED Lookup Map Initialized");
 
-    // All ON (Clearly conditional initialization)
-    if(hasCA) GN1640_allOn();
-    if(hasLA) tm1637_allOn(LA_Device);
-    if(hasRA) tm1637_allOn(RA_Device);
-    if(hasLockShoot) WS2812_allOn(CRGB::Green);
-    if(hasECM) PCA9555_allOn(0x22);
-    if(hasMasterARM) PCA9555_allOn(0x5B);
     GPIO_setAllLEDs(true); // GPIO always included clearly
-
-    delay(2000);
-
-    // Turn off ALL (Clearly conditional initialization)
-    if(hasCA) GN1640_allOff();
-    if(hasLA) tm1637_allOff(LA_Device);
-    if(hasRA) tm1637_allOff(RA_Device);
-    if(hasLockShoot) WS2812_allOff();
-    if(hasMasterARM) PCA9555_allOff(0x5B);
-    if(hasECM) PCA9555_allOff(0x22);
+    delay(1000);
     GPIO_setAllLEDs(false); // GPIO always included clearly
-}
 
+    // All ON (Clearly conditional initialization)
+    if(hasCA) {
+        GN1640_allOn();
+        delay(1000);
+        GN1640_allOff();
+    }
+
+    if(hasLockShoot) {
+        WS2812_allOn(CRGB::Green);
+        delay(1000);
+        WS2812_allOff();
+    }
+
+    if(hasLA) {
+        tm1637_allOn(LA_Device);
+        delay(1000);
+    }
+    if(hasRA) {
+        tm1637_allOn(RA_Device);
+        delay(1000);
+    }
+    
+    if(hasLA) {
+        tm1637_allOff(LA_Device);
+    }
+
+    if(hasRA) { 
+        tm1637_allOff(RA_Device);
+    }
+    
+    if(hasMasterARM) { 
+        PCA9555_allOn(0x5B);
+        delay(1000);
+        PCA9555_allOff(0x5B);
+    }
+
+    if(hasECM) {
+        PCA9555_allOn(0x22);
+        delay(1000);
+        PCA9555_allOff(0x22);
+    }
+}
+ 
 void setLED(const char* label, bool state, uint8_t intensity) {
 
     if (strcmp(label, "ALL_PANELS_ALL_LEDS") == 0) {
       // Handle ALL LEDs, including GPIO explicitly
-      PCA9555_setAllLEDs(state);
-      GPIO_setAllLEDs(state);
-      WS2812_setAllLEDs(state);
-      TM1637_setAllLEDs(state);
-      GN1640_setAllLEDs(state);
+      // PCA9555_setAllLEDs(state);
+      // GPIO_setAllLEDs(state);
+      // WS2812_setAllLEDs(state);
+      // TM1637_setAllLEDs(state);
+      // GN1640_setAllLEDs(state);
       return;
     }
 
     // Handle meta-commands first
     if (strcmp(label, "ALL_PANELS_LEDS") == 0) {
-        setAllPanelsLEDs(state);
+        // setAllPanelsLEDs(state);
         return;
     }
 
     if (strcmp(label, "LA_ALL_LEDS") == 0) {
-        setPanelAllLEDs("LA_", state);
+        // setPanelAllLEDs("LA_", state);
         return;
     }
 
     if (strcmp(label, "RA_ALL_LEDS") == 0) {
-        setPanelAllLEDs("RA_", state);
+        // setPanelAllLEDs("RA_", state);
         return;
     }
 
     if (strcmp(label, "ECM_ALL_LEDS") == 0) {
-        setPanelAllLEDs("ECM_", state);
+        // setPanelAllLEDs("ECM_", state);
         return;
     }
 
     if (strcmp(label, "ARM_ALL_LEDS") == 0) {
-        setPanelAllLEDs("ARM_", state);
+        // setPanelAllLEDs("ARM_", state);
         return;
     }
 
     if (strcmp(label, "CA_ALL_LEDS") == 0) {
         // setPanelAllLEDs("CA_", state);
-        GN1640_setAllLEDs(state);
+        // GN1640_setAllLEDs(state);
         return;
     }
 
     if (strcmp(label, "LOCKSHOOT_ALL_LEDS") == 0) {
-        setPanelAllLEDs("LOCKSHOOT_", state);
+        // setPanelAllLEDs("LOCKSHOOT_", state);
         return;
     }
 

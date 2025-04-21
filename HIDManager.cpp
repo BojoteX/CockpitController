@@ -1,12 +1,27 @@
 // HIDManager.cpp - Cleaned Version
 // TEKCreations F/A-18C Firmware HID Report Management
 
+#include <cstring>
 #include <map>
+#include <unordered_map>
 #include "src/HIDManager.h"
 #include "src/Globals.h"
 #include "src/DCSBIOSBridge.h"
-#include <Adafruit_TinyUSB.h>
+#include "src/Mappings.h"
 
+// Group bitmask store — zero heap churn, pointer-keyed
+#define MAX_GROUPS 32
+static uint32_t groupBitmask[MAX_GROUPS] = {0};
+void buildHIDGroupBitmasks() {
+  for (size_t i = 0; i < InputMappingSize; ++i) {
+      const InputMapping& m = InputMappings[i];
+      if (m.group > 0 && m.hidId > 0) {
+          groupBitmask[m.group] |= (1UL << (m.hidId - 1));
+      }
+  }
+}
+
+#include <Adafruit_TinyUSB.h>
 Adafruit_USBD_HID usb_hid;
 
 // HID report descriptor: 1 axis (Rx), 32 buttons
@@ -48,6 +63,9 @@ static GamepadReport_t report;
 
 // Initialize USB HID interface
 void HIDManager_begin() {
+
+  // This generates out fast uint32_t masks based purely on InputMapping[]
+  buildHIDGroupBitmasks();
 
   TinyUSBDevice.setID(0xCafe, 0x18C0);
   TinyUSBDevice.setProductDescriptor("F/A-18C Hornet Cockpit Controller");
@@ -141,24 +159,6 @@ void HIDManager_commitDeferredReport() {
   usb_hid.sendReport(0, &report, sizeof(report));
 }
 
-// Set exclusive button within a group, clearing others
-void HIDManager_setExclusiveButton(uint8_t buttonID, bool deferSend) {
-  if (buttonID < 1 || buttonID > 32) return;
-
-  auto it = exclusiveButtonGroups.find(buttonID);
-  if (it != exclusiveButtonGroups.end()) {
-    uint32_t groupMask = it->second;
-    report.buttons &= ~groupMask;
-    report.buttons |= (1UL << (buttonID - 1));
-  } else {
-    report.buttons |= (1UL << (buttonID - 1));
-  }
-
-  if (!deferSend && usb_hid.ready()) {
-    usb_hid.sendReport(0, &report, sizeof(report));
-  }
-}
-
 void HIDManager_keepAlive() {
   static unsigned long lastRefresh = 0;
   const unsigned long refreshInterval = 100;
@@ -172,67 +172,58 @@ void HIDManager_keepAlive() {
 }
 
 void HIDManager_setNamedButton(const String& name, bool deferSend, bool pressed) {
-  
-  if (isModeSelectorDCS()) {
+  const InputMapping* mapping = nullptr;
 
-    // Translate our switches, dials and rotary encoders
-
-  // {0x22, 0, 4, "EMC_SELECTOR_OFF"},
-  // {0x22, 0, 5, "EMC_SELECTOR_STBY"},
-  // {0x22, 0, 6, "EMC_SELECTOR_BIT"},
-  // {0x22, 0, 7, "EMC_SELECTOR_REC"},
-  // {0x22, 1, 0, "EMC_SELECTOR_XMIT"},
-
-    if (name == "EMC_SELECTOR_XMIT") {
-      sendDCSBIOSCommand("ECM_MODE_SW", 0);
-    } else if (name == "EMC_SELECTOR_REC") {
-      sendDCSBIOSCommand("ECM_MODE_SW", 1);
-    } else if (name == "EMC_SELECTOR_BIT") {
-      sendDCSBIOSCommand("ECM_MODE_SW", 2);
-    } else if (name == "EMC_SELECTOR_STBY") {
-      sendDCSBIOSCommand("ECM_MODE_SW", 3);
-    } else if (name == "EMC_SELECTOR_OFF") {
-      sendDCSBIOSCommand("ECM_MODE_SW", 4);
-    } else {
-      sendDCSBIOSCommand(name.c_str(), pressed ? 1 : 0);
+  for (size_t i = 0; i < InputMappingSize; ++i) {
+    if (strcmp(name.c_str(), InputMappings[i].label) == 0) {
+      mapping = &InputMappings[i];
+      break;
     }
-    return;
-
   }
 
-  // HID Mode (Original Logic)
-  auto it = buttonMap.find(name);
-  if (it == buttonMap.end()) {
-    debugPrint("⚠️ ");
+  if (!mapping) {
+    debugPrint("⚠️ [HIDManager] ");
     debugPrint(name);
     debugPrintln(" is UNKNOWN");
     return;
   }
 
-  uint8_t buttonID = it->second;
+  // Debug
+  debugPrint("🔘 [");
+  debugPrint(isModeSelectorDCS() ? "DCS" : "HID");
+  debugPrint("] ");
+  debugPrint(mapping->label);
+  debugPrint(" = ");
+  debugPrintln(pressed ? "1" : "0");
 
-  // Log action to Serial
-  debugPrint("🔘 [HID MODE] ");
-  debugPrint(name);
-  debugPrintln(pressed ? " 1" : " 0");
+  // DCS MODE
+  if (isModeSelectorDCS()) {
+    if (mapping->oride_label && mapping->oride_value >= 0) {
+      uint16_t valueToSend;
 
-  // Handle exclusive groups (if any)
-  auto groupIt = exclusiveButtonGroups.find(buttonID);
-  if (groupIt != exclusiveButtonGroups.end()) {
-    if (pressed) {
-      HIDManager_setExclusiveButton(buttonID, deferSend);
+      if (strcmp(mapping->controlType, "momentary") == 0) {
+        valueToSend = pressed ? 1 : 0;
+      } else {
+        if (!pressed) return; // only send on press for selector
+        valueToSend = mapping->oride_value;
+      }
+
+      sendDCSBIOSCommand(mapping->oride_label, valueToSend);
     }
     return;
   }
 
-  // Handle regular button press
-  if (deferSend) {
-    if (pressed) {
-      report.buttons |= (1UL << (buttonID - 1));
-    } else {
-      report.buttons &= ~(1UL << (buttonID - 1));
-    }
-  } else {
-    HIDManager_setButton(buttonID, pressed);
+  // HID MODE
+  if (mapping->hidId <= 0) return;
+
+  uint32_t mask = (1UL << (mapping->hidId - 1));
+
+  if (mapping->group > 0 && pressed) {
+    report.buttons &= ~groupBitmask[mapping->group];  // clear all in group
+  }
+  report.buttons |= mask;  // set current
+
+  if (!deferSend && usb_hid.ready()) {
+    usb_hid.sendReport(0, &report, sizeof(report));
   }
 }

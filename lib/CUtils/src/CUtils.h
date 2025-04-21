@@ -93,12 +93,15 @@ void PCA9555_patternTesting(uint8_t addr);
 static uint8_t PCA9555_cachedPortStates[256][2] = {0}; // Cache PCA9555 output port states, initialized to 0x00 (LEDs off initially)
 void PCA9555_autoInitFromLEDMap(uint8_t address);
 void PCA9555_initAsOutput(uint8_t address, uint8_t port0_output_mask, uint8_t port1_output_mask);
+void logExpanderState(uint8_t p0, uint8_t p1);
+
+bool isPCA9555LoggingEnabled();
 bool isPCA9555LoggingEnabled(); // Used for PCA Logging
 void enablePCA9555Logging(bool enable);
-bool isPCA9555LoggingEnabled();
+void logPCA9555State(uint8_t address, byte port0, byte port1);
+
 bool readPCA9555(uint8_t address, byte &port0, byte &port1);
 void initPCA9555AsInput(uint8_t address);
-void logPCA9555State(uint8_t address, byte port0, byte port1);
 bool shouldLogChange(uint8_t address, byte port0, byte port1);
 void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state); // PCAWrite (LEDs)
 

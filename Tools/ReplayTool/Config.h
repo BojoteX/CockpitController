@@ -1,4 +1,4 @@
 #pragma once
 
-#define DEBUG_USE_WIFI true
-#define IS_REPLAY false
+#define DEBUG_USE_WIFI false
+#define IS_REPLAY true
