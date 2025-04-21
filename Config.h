@@ -7,5 +7,5 @@ bool __atomic_test_and_set(volatile void* ptr, int memorder) {
 }
 
 // Misc Options
-#define DEBUG_USE_WIFI true
+#define DEBUG_USE_WIFI false
 #define IS_REPLAY true

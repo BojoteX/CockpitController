@@ -77,7 +77,6 @@ void onAircraftName(char* str) {
 // Get MetaData to init cockpit state
 DcsBios::StringBuffer<24> aicraftName(0x0000, onAircraftName); 
 
-/* Its not letting me do integer buffers
 // Cover state callbacks (bitmask logic made explicit and consistent)
 void onGainSwitchCover(unsigned int val)     { cover::gain_switch     = (val & 0x8000) != 0; }
 void onGenTieCover(unsigned int val)         { cover::gen_tie         = (val & 0x1000) != 0; }
@@ -91,7 +90,6 @@ DcsBios::IntegerBuffer genTieCoverBuf        (0x74F2, 0x1000, 12, onGenTieCover)
 DcsBios::IntegerBuffer leftFireCoverBuf      (0x73F8, 0x0100,  8, onLeftFireCover);
 DcsBios::IntegerBuffer rightFireCoverBuf     (0x73FC, 0x0040,  6, onRightFireCover);
 DcsBios::IntegerBuffer spinRecoveryCoverBuf  (0x74FA, 0x1000, 12, onSpinRecoveryCover);
-*/
 
 //////////////////////////////////////////////////////////////////////////////////////
 //
@@ -159,51 +157,27 @@ void DcsbiosProtocolReplay() {
     const uint8_t* end = dcsbiosReplayData + dcsbiosReplayLength;
 
     while (ptr < end) {
-        // Read float delay
         float frameDelay;
-        memcpy(&frameDelay, ptr, sizeof(float));
+        memcpy_P(&frameDelay, ptr, sizeof(float));
         ptr += sizeof(float);
 
-        // Read uint16_t frame length
-        uint16_t len = ptr[0] | (ptr[1] << 8);
+        uint16_t len = pgm_read_byte(ptr) | (pgm_read_byte(ptr + 1) << 8);
         ptr += 2;
 
-        // Replay frame bytes
         for (uint16_t i = 0; i < len; i++) {
-            DcsBios::parser.processChar(pgm_read_byte(ptr + i));
-            delayMicroseconds(1);
+            uint8_t b = pgm_read_byte(ptr + i);
+            DcsBios::parser.processChar(b);
+            DcsBios::loop();               // ✅ Loop after each byte
+            delayMicroseconds(1);          // simulate serial pace
         }
         ptr += len;
 
-        DcsBios::loop();
+        DcsBios::loop();                   // catch final updates
         delay((unsigned long)(frameDelay * 1000));
     }
 
     debugPrintln("[REPLAY PROTOCOL] ✅ Complete.\n");
 }
-
-/*
-void DcsbiosProtocolReplay() {
-        debugPrintln("\n[REPLAY PROTOCOL] Injecting binary data into DCS-BIOS parser...");
-    for (size_t i = 0; i < replayFrameCount; ++i) {
-        const auto& frame = replayFrames[i];
-        delay((unsigned long)(frame.delay * 100));
-        uint8_t buffer[10] = {
-            0x55, 0x55, 0x55, 0x55,
-            frame.address & 0xFF, (frame.address >> 8) & 0xFF,
-            0x02, 0x00,
-            frame.data & 0xFF, (frame.data >> 8) & 0xFF
-        };
-        for (uint8_t b : buffer) {
-            DcsBios::parser.processChar(b);
-            delayMicroseconds(1);
-            DcsBios::loop();
-        }
-        DcsBios::loop();
-    }
-    debugPrintln("[REPLAY PROTOCOL] Completed DCS-BIOS parser injection.\n");
-}
-*/
 #endif
 
 void DCSBIOS_init() {
