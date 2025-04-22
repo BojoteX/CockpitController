@@ -1,3 +1,5 @@
+#define DCSBIOS_DISABLE_SERVO
+#define DCSBIOS_DEFAULT_SERIAL
 #include <DcsBios.h>
 #include "src/DCSBIOSBridge.h"
 #include "src/LABELS/DCSBIOSBridgeData.h"
@@ -62,10 +64,10 @@ void onAircraftName(char* str) {
 
     #if DEBUG_USE_WIFI
     char buf[128];
-    snprintf(buf, sizeof(buf), "[AIRCRAFT] %s.", str);
+    snprintf(buf, sizeof(buf), "[AIRCRAFT] %s.\n", str);
     sendDebug(buf);
     #else
-    debugPrintf("[AIRCRAFT] %s.", str);
+    debugPrintf("[AIRCRAFT] %s.\n", str);
     #endif
 
     // Initialize panel switches
@@ -73,10 +75,10 @@ void onAircraftName(char* str) {
     if (hasECM) ECM_init();
     if (hasMasterARM) MasterARM_init();
 }
-
 // Get MetaData to init cockpit state
-DcsBios::StringBuffer<24> aicraftName(0x0000, onAircraftName); 
+DcsBios::StringBuffer<24> aicraftName(0x0000, onAircraftName); // Its safe to do StringBuffer and Integer buffer for addresses OUTSIDE our listener, we do so for MetaData
 
+/*
 // Cover state callbacks (bitmask logic made explicit and consistent)
 void onGainSwitchCover(unsigned int val)     { cover::gain_switch     = (val & 0x8000) != 0; }
 void onGenTieCover(unsigned int val)         { cover::gen_tie         = (val & 0x1000) != 0; }
@@ -90,6 +92,7 @@ DcsBios::IntegerBuffer genTieCoverBuf        (0x74F2, 0x1000, 12, onGenTieCover)
 DcsBios::IntegerBuffer leftFireCoverBuf      (0x73F8, 0x0100,  8, onLeftFireCover);
 DcsBios::IntegerBuffer rightFireCoverBuf     (0x73FC, 0x0040,  6, onRightFireCover);
 DcsBios::IntegerBuffer spinRecoveryCoverBuf  (0x74FA, 0x1000, 12, onSpinRecoveryCover);
+*/
 
 //////////////////////////////////////////////////////////////////////////////////////
 //

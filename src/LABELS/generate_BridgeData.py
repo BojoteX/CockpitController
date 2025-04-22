@@ -4,9 +4,10 @@ from collections import defaultdict
 # -------- CONFIGURATION --------
 JSON_FILE     = "FA-18C_hornet.json"
 OUTPUT_HEADER = "DCSBIOSBridgeData.h"
+INPUT_REFERENCE = "InputMapping.h.REFERENCE"
 PROCESS_ALL   = False  # apply target_objects filtering to ALL three tables
 
-# Panels to include when PROCESS_ALL is False (sacred!)
+# Panels to include when PROCESS_ALL is False. This is NEVER to be altered in any way
 target_objects = {
     'Fire Systems',
     'Caution Light Panel',
@@ -20,21 +21,22 @@ target_objects = {
     'RH Advisory Panel',
     'Right Engine Fire Warning Extinguisher Light',
     'Interior Lights Panel',
-    'APU Fire Warning Extinguisher Light'
+    'APU Fire Warning Extinguisher Light',
+    'Integrated Fuel/Engine Indicator (IFEI)'
 }
 
-# -------- LOAD JSON --------
+# -------- LOAD JSON -------- You need to load the Hornet Json file in order to generate the file.
 with open(JSON_FILE, encoding='utf-8') as f:
     data = json.load(f)
 
-# -------- BUILD OUTPUT_ENTRIES (filtered) --------
+# -------- BUILD OUTPUT_ENTRIES (filtered) -------- THE LOGIC HERE IS SACRED, YOU DO NOT TOUCH NOT EVEN A COMMENT
 output_entries = []
 for panel, controls in data.items():
     if not PROCESS_ALL and panel not in target_objects:
         continue
     for key, item in controls.items():
         ctype = item.get('control_type','').lower().strip()
-        if ctype not in ('led','limited_dial'):
+        if ctype not in ('led','limited_dial','analog_gauge'):
             continue
         outs = item.get('outputs', [])
         if not outs:
@@ -50,7 +52,7 @@ for panel, controls in data.items():
             'max_value': out.get('max_value', 1)
         })
 
-# -------- BUILD INPUT_ENTRIES (filtered) --------
+# -------- BUILD INPUT_ENTRIES (filtered) -------- THE LOGIC HERE IS SACRED, YOU DO NOT TOUCH NOT EVEN A COMMENT
 input_entries = []
 for panel, controls in data.items():
     if not PROCESS_ALL and panel not in target_objects:
@@ -65,7 +67,7 @@ for panel, controls in data.items():
                 })
                 break
 
-# -------- BUILD SELECTOR_ENTRIES (filtered) --------
+# -------- BUILD SELECTOR_ENTRIES (filtered) -------- THE LOGIC HERE IS SACRED, YOU DO NOT TOUCH NOT EVEN A COMMENT
 selector_entries = []
 groupCounter = 0
 for panel, controls in data.items():
@@ -78,7 +80,7 @@ for panel, controls in data.items():
         desc_lower  = item.get('description','').lower()
 
         # skip analogs
-        if ctype in ('limited_dial','analog_dial'):
+        if ctype in ('limited_dial','analog_dial','analog_gauge'):
             continue
 
         # find max_value
@@ -141,7 +143,9 @@ for panel, controls in data.items():
             else:
                 selector_entries.append((f"{ident}_{clean}", ident, i, ctype, 0))
 
-# -------- WRITE HEADER --------
+# -------- WRITE HEADER -------- 
+# ---------- BE VERY CAREFUL WITH THIS BLOCK, ANY CHANGES TO IT SHOULD BE PERFORMED BELOW THE CLEARLY MARKED LABELED LLM CHANGES BELOW
+
 with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
     f.write("// Auto-generated DCSBIOS Bridge Data (JSON‑only)\n")
     f.write("#pragma once\n\n#include <stdint.h>\n#include <vector>\n#include <unordered_map>\n\n")
@@ -178,12 +182,24 @@ with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
         f.write(f'    {{ "{full}","{cmd}",{val},"{ct}",{grp} }},\n')
     f.write("};\nstatic const size_t SelectorMapSize = sizeof(SelectorMap)/sizeof(SelectorMap[0]);\n")
 
+# --------- LLM CHANGES BEGIN --------------
+
+
+
+
+# --------- LLM CHANGES END -------------- 
+
+# DO NOT TOUCH OR ALTER ANYTHING BELOW THIS LINE, 
+# SINCE FILE OUTPUT_HEADER IS ALREADY OPEN, YOUR JOB IS TO SIMPLE ADD THE LOGIC BLOCK
+# AND WRITE ITS OUTPUT IN THE CURRENTLY OPENED HANDLE, THIS TO ENSURE YOU DO NOT ALTER
+# OR CHANGE THE LOGIC ON THIS SCRIPT EXCEPT FOR THE  LLM CHANGES BEGIN and END blocks
+
 print(f"[✓] Generated {OUTPUT_HEADER} with "
       f"{len(output_entries)} outputs, {len(input_entries)} inputs, "
       f"{len(selector_entries)} selectors.")
 
 # -------- WRITE INPUT_MAPPING REFERENCE --------
-with open("../InputMapping.h.REFERENCE", "w", encoding="utf-8") as f2:
+with open(INPUT_REFERENCE, "w", encoding="utf-8") as f2:
     f2.write("struct InputMapping {\n")
     f2.write("    const char* label;         // Unique selector label\n")
     f2.write("    const char* source;        // Hardware source identifier\n")

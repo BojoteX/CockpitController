@@ -16,6 +16,8 @@
 
 // efficient LED lookup map
 std::unordered_map<std::string, LEDMapping*> ledMap;
+// std::unordered_map<std::string_view, LEDMapping*> ledMap;
+
 
 void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
 
@@ -98,53 +100,6 @@ void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
 }
  
 void setLED(const char* label, bool state, uint8_t intensity) {
-
-    if (strcmp(label, "ALL_PANELS_ALL_LEDS") == 0) {
-      // Handle ALL LEDs, including GPIO explicitly
-      // PCA9555_setAllLEDs(state);
-      // GPIO_setAllLEDs(state);
-      // WS2812_setAllLEDs(state);
-      // TM1637_setAllLEDs(state);
-      // GN1640_setAllLEDs(state);
-      return;
-    }
-
-    // Handle meta-commands first
-    if (strcmp(label, "ALL_PANELS_LEDS") == 0) {
-        // setAllPanelsLEDs(state);
-        return;
-    }
-
-    if (strcmp(label, "LA_ALL_LEDS") == 0) {
-        // setPanelAllLEDs("LA_", state);
-        return;
-    }
-
-    if (strcmp(label, "RA_ALL_LEDS") == 0) {
-        // setPanelAllLEDs("RA_", state);
-        return;
-    }
-
-    if (strcmp(label, "ECM_ALL_LEDS") == 0) {
-        // setPanelAllLEDs("ECM_", state);
-        return;
-    }
-
-    if (strcmp(label, "ARM_ALL_LEDS") == 0) {
-        // setPanelAllLEDs("ARM_", state);
-        return;
-    }
-
-    if (strcmp(label, "CA_ALL_LEDS") == 0) {
-        // setPanelAllLEDs("CA_", state);
-        // GN1640_setAllLEDs(state);
-        return;
-    }
-
-    if (strcmp(label, "LOCKSHOOT_ALL_LEDS") == 0) {
-        // setPanelAllLEDs("LOCKSHOOT_", state);
-        return;
-    }
 
     auto it = ledMap.find(label);
     if (it != ledMap.end()) {

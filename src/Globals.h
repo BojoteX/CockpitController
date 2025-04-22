@@ -3,7 +3,7 @@
 #define GLOBALS_H
 
 #include <Arduino.h>
-#include <Adafruit_TinyUSB.h>   
+// #include <Adafruit_TinyUSB.h>   
 #include "../lib/CUtils/src/CUtils.h"             
 #include "DebugPrint.h"
 
@@ -30,6 +30,6 @@ extern TM1637Device RA_Device;
 extern TM1637Device LA_Device;
 
 // TinyUSB
-extern Adafruit_USBD_HID usb_hid;
+// extern Adafruit_USBD_HID usb_hid;
 
 #endif // GLOBALS_H

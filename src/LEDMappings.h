@@ -4,24 +4,10 @@
 #ifdef DEFINE_MAPPINGS
 
 LEDMapping panelLEDs[] = {
-
-  // Panel-specific meta-commands
-  // {"LA_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
-  // {"RA_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
-  // {"ECM_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
-  // {"ARM_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
-  // {"CA_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
-  // {"LOCKSHOOT_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
-
-  // Global meta-command (ALL PANELS)
-  // {"ALL_PANELS_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
-
-  // Global meta-command (ALL PANELS)
-  // {"ALL_PANELS_ALL_LEDS", DEVICE_NONE, {.gpioInfo = {0}}, false},
-
-  // GPIO LEDs
+  // GPIO LEDs & Analog Gauges (Servo controlled)
   {"INST_PNL_DIMMER", DEVICE_GPIO, {.gpioInfo = {6}}, true},
   {"SPIN_LT", DEVICE_GPIO, {.gpioInfo = {34}}, false},
+  {"PRESSURE_ALT", DEVICE_GPIO, {.gpioInfo = {6}}, true}, // Pressure Altimeter gauge
 
   // PCA9555 LEDs
   {"CMSD_JET_SEL_L", DEVICE_PCA9555, {.pcaInfo = {0x22, 1, 1}}, false, true},

@@ -57,9 +57,6 @@ void setup() {
   // I2C Initialization
   Wire.begin(SDA_PIN, SCL_PIN);
 
-  // USB HID Initialization
-  TinyUSBDevice.begin(0);
-
   // Starts our HID device
   HIDManager_begin();
 

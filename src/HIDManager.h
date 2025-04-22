@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include <Adafruit_TinyUSB.h>
+// #include <Adafruit_TinyUSB.h>
 
 // Initialize HID device and descriptors
 void HIDManager_begin();
