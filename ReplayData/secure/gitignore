@@ -1,4 +1,4 @@
-# ignore /ReplayData/secure/password.h
-​/ReplayData/secure/password.h
-# but keep /ReplayData/secure/ 
-!/ReplayData/secure/
+# ignore /CockpitController/ReplayData/secure/password.h
+​/CockpitController/ReplayData/secure/password.h
+# but keep /CockpitController/ReplayData/secure/ 
+!/CockpitController/ReplayData/secure/
