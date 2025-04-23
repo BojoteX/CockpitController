@@ -1,6 +1,10 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
+// -- Serial Configuration --
+#define BAUD_RATE 250000                // Not used, just legacy 
+#define SERIAL_STARTUP_DELAY 3000       // Delay (ms) allowing Serial Monitor to connect
+
 // -- Project Headers --
 #define DEFINE_MAPPINGS
 #include "src/HIDManager.h"
@@ -8,6 +12,10 @@
 #include "src/Globals.h"
 #include "Config.h"
 #include <Wire.h>
+
+#if DEBUG_USE_WIFI
+#include "src/WiFiDebug.h"
+#endif
 
 // -- GPIO Pin Configuration --
 #define SDA_PIN 8                      // I2C Data Pin
@@ -34,15 +42,29 @@ bool isModeSelectorDCS() {
 
 // Arduino Setup Routine
 void setup() {
+
+  // Initialize serial before anything so we can debug and print all messages
+  delay(1000);
+  Serial.begin(BAUD_RATE); 
+  unsigned long start = millis();
+  while (!Serial && (millis() - start < SERIAL_STARTUP_DELAY)) delay(1);
+
+  #if DEBUG_USE_WIFI
+  wifi_setup();
+  #endif
+
   // GPIO Setup
   pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
 
+  // Always 1 during setup, DEBUG = true will keep it that way in main loop
+  enablePCA9555Logging(1);
+
   // I2C Initialization
   Wire.begin(SDA_PIN, SCL_PIN);
 
-  // Starts our HID device and CDC Serial
+  // Starts our HID device
   HIDManager_begin();
 
 // Detect Panels (They are off by default)
@@ -113,19 +135,17 @@ void setup() {
 
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
-
-  if(DEBUG) {if (!isModeSelectorDCS())
-    enablePCA9555Logging(1);
+  
+  #if TEST_LEDS
     printLEDMenu();
     handleLEDSelection();
     debugPrintln("Exiting LED selection menu. Continuing execution...");
-    debugPrintln("DEBUG mode is ENABLED");
-  }
-  else {
-    enablePCA9555Logging(0);
-  }
+  #endif 
 
   DCSBIOS_init();
+
+  // If we are not debugging we turn it off.
+  if(!DEBUG) enablePCA9555Logging(0);
 
   // Ready to go!
   debugPrintln("Device is now ready!\n");

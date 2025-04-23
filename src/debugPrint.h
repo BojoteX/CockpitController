@@ -43,4 +43,6 @@ void endProfiling  (const char*);
 #define begin_profiling(n) beginProfiling(n)
 #define end_profiling(n)   endProfiling(n)
 
+void reduceCpuFreq();
+
 #endif // DEBUGPRINT_H

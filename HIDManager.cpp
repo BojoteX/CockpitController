@@ -10,10 +10,6 @@
 #include "src/DCSBIOSBridge.h"
 #include "src/Mappings.h"
 
-// -- CDC Serial Configuration --
-#define BAUD_RATE 250000                // Not used, just legacy 
-#define SERIAL_STARTUP_DELAY 3000       // Delay (ms) allowing Serial Monitor to connect
-
 // Group bitmask store
 #define MAX_GROUPS 32
 static uint32_t groupBitmask[MAX_GROUPS] = {0};
@@ -81,30 +77,21 @@ GPDevice gp;
 
 // Initialize USB HID
 void HIDManager_begin() {
+  // Load input bitmasks
+  buildHIDGroupBitmasks();
 
-  // Configure custom USB descriptors **before** starting USB
+  // Configure custom USB descriptors **before** starting HID
   USB.productName("FA-18C Cockpit Controller");   // Product string
   USB.manufacturerName("Bojote");                 // Manufacturer string
-  USB.serialNumber("FA18C-AA-02");                // Serial number string
+  USB.serialNumber("FA18C-AB-02");                // Serial number string
   USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
-  USB.PID(0xA18B);                                // Set Product ID
+  USB.PID(0x1102);                                // Set Product ID
 
 // USB Stack init (seems to start on its own)
   USB.begin();
 
   // HID Device init (we dont need this in DCS Only mode)
-  if (!isModeSelectorDCS()) { HID.begin(); };
-
-  // now bring up the CDC port
-  Serial.begin(BAUD_RATE);
-  debugPrint("Connecting");
-  while (!Serial) {
-    debugPrint(".");
-    delay(500);
-  }
-  debugPrint("\nConnected");
-
-  buildHIDGroupBitmasks();
+  HID.begin(); if (!isModeSelectorDCS());
 }
 
 // Axis Movement

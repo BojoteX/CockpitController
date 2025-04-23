@@ -1,11 +1,15 @@
 #include "src/DebugPrint.h"
 #include "src/Globals.h"  
+#include "src/WiFiDebug.h"   
 #include "Config.h"   
 
 #if DEBUG_PERFORMANCE
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include "esp_system.h"
+#include "driver/temperature_sensor.h"
 #include <esp32-hal.h>    // for ESP.getFreeHeap()
+#include "esp_pm.h"
 #include <ctype.h>        // for isdigit()
 
 // max number of distinct blocks we’ll profile
@@ -58,6 +62,32 @@ void endProfiling(const char* name) {
   uint64_t dt  = now - _profiles[idx].lastStart;
   _profiles[idx].accumUs += dt;
   _profiles[idx].count   += 1;
+}
+
+void reduceCpuFreq() {
+  esp_pm_config_esp32s2_t cfg = {
+    .max_freq_mhz = 80,    // Default is 240 MHz
+    .min_freq_mhz = 80,
+    .light_sleep_enable = false
+  };
+  esp_pm_configure(&cfg);
+}
+
+float getCpuTemp() {
+  temperature_sensor_config_t temp_sensor = {
+    .range_min = 10,
+    .range_max = 50
+  };
+  temperature_sensor_handle_t handle;
+  float temp;
+
+  temperature_sensor_install(&temp_sensor, &handle);
+  temperature_sensor_enable(handle);
+  temperature_sensor_get_celsius(handle, &temp);
+  temperature_sensor_disable(handle);
+  temperature_sensor_uninstall(handle);
+
+  return temp;
 }
 
 void performanceSetup() {
@@ -124,8 +154,8 @@ void sendPerformanceSnapshot() {
   // 6) send main PERF line
   char out[128];
   int n = snprintf(out, sizeof(out),
-    "[PERF] CPU(10s): %.1f%%  Heap: %u ",
-    cpuLoad, (unsigned)heap);
+    "[PERF] CPU(10s): %.1f%%  Heap: %u, CPU Temp: %u °C ",
+    cpuLoad, (unsigned)heap, getCpuTemp());
 
   // 7) send separators and blank lines
   #if DEBUG_USE_WIFI

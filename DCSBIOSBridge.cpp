@@ -10,6 +10,10 @@
 #include "src/Globals.h"
 #include <unordered_map>
 
+#if DEBUG_USE_WIFI
+#include "src/WiFiDebug.h"
+#endif
+
 // Used to track cockpit cover states for the hornet.
 namespace cover {
     volatile bool gain_switch      = false;
@@ -18,10 +22,6 @@ namespace cover {
     volatile bool right_eng_fire   = false;
     volatile bool spin_recovery    = false;
 }
-
-#if DEBUG_USE_WIFI
-#include "src/WiFiDebug.h"
-#endif
 
 class DcsBiosSniffer : public DcsBios::ExportStreamListener {
 public:
@@ -195,16 +195,13 @@ void DcsbiosProtocolReplay() {
 #endif
 
 void DCSBIOS_init() {
+
     #if DEBUG_PERFORMANCE
     performanceSetup(); // this is used for profiling, see debugPrint for details
     #endif
 
     DcsBios::setup();
     debugPrintln("\nDCSBIOS Library Initialization Complete.\n");
-
-    #if DEBUG_USE_WIFI
-    wifi_setup();
-    #endif
 
     #if IS_REPLAY
     // Begin simulated loop

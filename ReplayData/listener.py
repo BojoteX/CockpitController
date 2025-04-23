@@ -1,10 +1,14 @@
 import socket
 
+# Show IP of this machine
+hostname = socket.gethostname()
+local_ip = socket.gethostbyname(hostname)
+print(f"[📡] This machine's IP address: {local_ip}")
+
 # === Configuration ===
 UDP_PORT = 12345
-BUFFER_SIZE = 1024  # Adjust if you're sending larger packets
+BUFFER_SIZE = 1024
 
-# === Create UDP socket ===
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('', UDP_PORT))
 
@@ -15,9 +19,6 @@ try:
         data, addr = sock.recvfrom(BUFFER_SIZE)
         msg = data.decode('utf-8', errors='replace').strip()
         print(f"[{addr[0]}] {msg}")
-        # Optional: log to file
-        # with open("debug_log.txt", "a") as f:
-        #     f.write(f"{msg}\n")
 except KeyboardInterrupt:
     print("\n[✋] Stopped by user.")
 finally:
