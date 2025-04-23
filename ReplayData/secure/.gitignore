@@ -1,2 +1,2 @@
-../secure/password.h
-!../secure/
+secure/password.h
+!secure/
