@@ -1,4 +1,0 @@
-# ignore secure/password.h
-​secure/password.h
-# but keep secure/
-!secure/
