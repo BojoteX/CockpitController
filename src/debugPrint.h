@@ -27,4 +27,20 @@ void debugWrite(uint8_t val);
 void debugPrintf(const char *format, ...);
 void debugPrintfln(const char *format, ...);
 
+extern uint64_t _busyTimeAccum;
+extern uint32_t _busyCount;
+
+void performanceSetup();
+void performanceLoop();
+
+void beginProfiling(const char*);
+void endProfiling  (const char*);
+
+// macros so we can:
+//   begin_profiling("DCSLoop");
+//   … our code … (DcsBios::loop for example)
+//   end_profiling("DCSTaskLoop");
+#define begin_profiling(n) beginProfiling(n)
+#define end_profiling(n)   endProfiling(n)
+
 #endif // DEBUGPRINT_H

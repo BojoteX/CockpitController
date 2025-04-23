@@ -1,33 +1,18 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
-// See that file first to enable WiFI debug or replay mode (simulating a stream from DCS)
+// -- Project Headers --
+#define DEFINE_MAPPINGS
+#include "src/HIDManager.h"
+#include "src/DCSBIOSBridge.h"
+#include "src/Globals.h"
 #include "Config.h"
-
-// Helps debug problems (To DEBUG over WiFi via UDP see Config.h)
-bool DEBUG = true; // Needed for alternate debugPrint
-
-// Init panel flags
-bool hasCA, hasLA, hasRA, hasIR, hasLockShoot, hasBrain, hasECM, hasMasterARM;
-
-// -- Serial Configuration --
-#define BAUD_RATE 250000
-#define SERIAL_STARTUP_DELAY 3000      // Delay (ms) allowing Serial Monitor to connect
+#include <Wire.h>
 
 // -- GPIO Pin Configuration --
 #define SDA_PIN 8                      // I2C Data Pin
 #define SCL_PIN 9                      // I2C Clock Pin
 #define MODE_SWITCH_PIN 33             // Mode Selection Pin (DCS-BIOS/HID)
-
-// -- Project Headers --
-#define DEFINE_MAPPINGS
-#include "src/HIDManager.h"
-#include "src/Globals.h"
-#include "src/DCSBIOSBridge.h"
-#include <Wire.h>
-
-// Definitions for Panel Detection logic
-// bool hasIR, hasLA, hasRA, hasCA, hasLockShoot, hasMasterARM, hasECM, hasBrain;
 
 // is DCS connected?
 bool dcsConnected = false; 
@@ -57,13 +42,8 @@ void setup() {
   // I2C Initialization
   Wire.begin(SDA_PIN, SCL_PIN);
 
-  // Starts our HID device
+  // Starts our HID device and CDC Serial
   HIDManager_begin();
-
-  // Initialize serial
-  Serial.begin(BAUD_RATE); 
-  unsigned long start = millis();
-  while (!Serial && (millis() - start < SERIAL_STARTUP_DELAY)) delay(1);
 
 // Detect Panels (They are off by default)
   scanConnectedPanels();
@@ -80,7 +60,7 @@ void setup() {
   hasLA = true;         // Left Annunciator
   hasRA = false;        // Right Annunciator
   hasIR = false;        // IR Cool Panel
-  hasLockShoot = false; // LockShoot Panel
+  hasLockShoot = true; // LockShoot Panel
 
   // Automatic PCA Panel detection (use the i2c scanner to get addresses)
   hasBrain     = discoveredDevices.count(0x26); // Brain Controller
@@ -134,7 +114,7 @@ void setup() {
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
 
-  if(DEBUG) {
+  if(DEBUG) {if (!isModeSelectorDCS())
     enablePCA9555Logging(1);
     printLEDMenu();
     handleLEDSelection();
@@ -153,7 +133,7 @@ void setup() {
 
 // Arduino Loop Routine
 void loop() {
-  if (!isModeSelectorDCS()) HIDManager_keepAlive();
+   HIDManager_keepAlive();
 
   // Shadow buffer implementation for Caution Advisory to guarantee row-coherent updates 
   // Solves problem with matrix scanning and partial row writes

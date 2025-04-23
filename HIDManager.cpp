@@ -1,6 +1,6 @@
 // HIDManager.cpp - Corrected Refactor for ESP32 Arduino Core 3.2.0 (No TinyUSB)
 
-#include <cstring>
+#include <Arduino.h>
 #include <map>
 #include <unordered_map>
 #include <USB.h>
@@ -10,20 +10,47 @@
 #include "src/DCSBIOSBridge.h"
 #include "src/Mappings.h"
 
+// -- CDC Serial Configuration --
+#define BAUD_RATE 250000                // Not used, just legacy 
+#define SERIAL_STARTUP_DELAY 3000       // Delay (ms) allowing Serial Monitor to connect
+
 // Group bitmask store
 #define MAX_GROUPS 32
 static uint32_t groupBitmask[MAX_GROUPS] = {0};
 
-USBHID HID;
+// Build HID group bitmasks
+void buildHIDGroupBitmasks() {
+  for (size_t i = 0; i < InputMappingSize; ++i) {
+      const InputMapping& m = InputMappings[i];
+      if (m.group > 0 && m.hidId > 0) {
+          groupBitmask[m.group] |= (1UL << (m.hidId - 1));
+      }
+  }
+}
 
-// HID Report Descriptor
-const uint8_t hidReportDesc[] = {
-  0x05, 0x01, 0x09, 0x05, 0xA1, 0x01,
-  0x09, 0x36, 0x15, 0x00, 0x26, 0xFF, 0x0F,
-  0x75, 0x10, 0x95, 0x01, 0x81, 0x02,
-  0x05, 0x09, 0x19, 0x01, 0x29, 0x20,
-  0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x20, 0x81, 0x02,
-  0xC0
+// HID report descriptor: 1 axis (Rx), 32 buttons
+uint8_t const hidReportDesc[] = {
+  0x05, 0x01,       // Usage Page (Generic Desktop)
+  0x09, 0x05,       // Usage (Gamepad)
+  0xA1, 0x01,       // Collection (Application)
+
+  0x09, 0x36,       // Usage (Rx)
+  0x15, 0x00,       // Logical Minimum (0)
+  0x26, 0xFF, 0x0F, // Logical Maximum (4095)
+  0x75, 0x10,       // Report Size (16)
+  0x95, 0x01,       // Report Count (1)
+  0x81, 0x02,       // Input (Data, Var, Abs)
+
+  0x05, 0x09,       // Usage Page (Buttons)
+  0x19, 0x01,       // Usage Min (Button 1)
+  0x29, 0x20,       // Usage Max (Button 32)
+  0x15, 0x00,
+  0x25, 0x01,
+  0x75, 0x01,
+  0x95, 0x20,
+  0x81, 0x02,       // Input (Data, Var, Abs)
+
+  0xC0              // End Collection
 };
 
 // HID report structure
@@ -38,16 +65,7 @@ typedef union {
 static_assert(sizeof(GamepadReport_t) == 6, "GamepadReport_t must be 6 bytes");
 static GamepadReport_t report;
 
-// Build HID group bitmasks
-void buildHIDGroupBitmasks() {
-  for (size_t i = 0; i < InputMappingSize; ++i) {
-      const InputMapping& m = InputMappings[i];
-      if (m.group > 0 && m.hidId > 0) {
-          groupBitmask[m.group] |= (1UL << (m.hidId - 1));
-      }
-  }
-}
-
+USBHID HID;
 class GPDevice : public USBHIDDevice {
 public:
   GPDevice() { HID.addDevice(this, sizeof(hidReportDesc)); }
@@ -59,13 +77,34 @@ public:
     return HID.SendReport(0, data, len);
   }
 };
-
 GPDevice gp;
 
 // Initialize USB HID
 void HIDManager_begin() {
-  buildHIDGroupBitmasks();
+
+  // Configure custom USB descriptors **before** starting USB
+  USB.productName("FA-18C Cockpit Controller");   // Product string
+  USB.manufacturerName("Bojote");                 // Manufacturer string
+  USB.serialNumber("FA18C-AA-02");                // Serial number string
+  USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
+  USB.PID(0xA18B);                                // Set Product ID
+
+// USB Stack init (seems to start on its own)
   USB.begin();
+
+  // HID Device init (we dont need this in DCS Only mode)
+  if (!isModeSelectorDCS()) { HID.begin(); };
+
+  // now bring up the CDC port
+  Serial.begin(BAUD_RATE);
+  debugPrint("Connecting");
+  while (!Serial) {
+    debugPrint(".");
+    delay(500);
+  }
+  debugPrint("\nConnected");
+
+  buildHIDGroupBitmasks();
 }
 
 // Axis Movement

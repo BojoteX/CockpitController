@@ -13,6 +13,7 @@ struct TM1637Device {
     uint8_t ledData[6];
 };
 
+// ===== Initialize LED routine =====
 void initializeLEDs(const char* activePanels[], unsigned int panelCount);
 
 // ===== Enumerations =====
@@ -46,8 +47,5 @@ void setLED(const char* label, bool state, uint8_t intensity = 100);
 // ===== External LED Map Declaration =====
 extern LEDMapping panelLEDs[];
 extern const uint16_t panelLEDsCount;
-
-// ===== Initialize LED routine =====
-void initializeLEDs(const char* activePanels[], size_t panelCount);
 
 #endif // LEDCONTROL_H

@@ -36,18 +36,30 @@ TM1637Device LA_Device;
 void GPIO_setAllLEDs(bool state);
 
 // WS2812
-#include <FastLED.h>
+// #include <FastLED.h>
+// #define NUM_LEDS 3
+// extern CRGB leds[NUM_LEDS];
+
 #define NUM_LEDS 3
-extern CRGB leds[NUM_LEDS];
+struct CRGB {uint8_t r, g, b;
+  static const CRGB Black;
+  static const CRGB Red;
+  static const CRGB Green;
+  static const CRGB Blue;
+  static const CRGB Yellow;
+};
+extern uint8_t brightness;
+
+
 void WS2812_init();
 void WS2812_setLEDColor(uint8_t ledIndex, CRGB color);
 void WS2812_clearAll();
 void WS2812_allOn(CRGB color);
 void WS2812_allOff();
 void WS2812_sweep(const CRGB* colors, uint8_t count);
-void WS2812_sweep();
 void WS2812_testPattern();
 void WS2812_setAllLEDs(bool state);
+
 
 // TM1637
 void TM1637_setAllLEDs(bool state);

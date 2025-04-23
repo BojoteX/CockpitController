@@ -1,12 +1,13 @@
+#define DCSBIOS_ESP32_CDC_SERIAL
 #define DCSBIOS_DISABLE_SERVO
-#define DCSBIOS_DEFAULT_SERIAL
 #include <DcsBios.h>
+
 #include "src/DCSBIOSBridge.h"
 #include "src/LABELS/DCSBIOSBridgeData.h"
 #include "src/LEDControl.h"
 #include "src/HIDManager.h"
-#include "src/Globals.h"
 #include "Config.h"
+#include "src/Globals.h"
 #include <unordered_map>
 
 // Used to track cockpit cover states for the hornet.
@@ -32,7 +33,7 @@ public:
 
     void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
 
-        #if DEBUG_USE_WIFI
+        #if DEBUG_PERFORMANCE
         begin_profiling("onDcsBiosWrite");
         #endif
 
@@ -50,7 +51,7 @@ public:
             onLedChange(entry->label, val, entry->max_value);
         }
 
-        #if DEBUG_USE_WIFI
+        #if DEBUG_PERFORMANCE
         end_profiling("onDcsBiosWrite");
         #endif
 
@@ -168,22 +169,36 @@ void DcsbiosProtocolReplay() {
         ptr += 2;
 
         for (uint16_t i = 0; i < len; i++) {
+
+            #if DEBUG_PERFORMANCE
+            begin_profiling("Replay-Simulation");
+            #endif
+
             uint8_t b = pgm_read_byte(ptr + i);
             DcsBios::parser.processChar(b);
             DcsBios::loop();               // ✅ Loop after each byte
             delayMicroseconds(1);          // simulate serial pace
+
+            #if DEBUG_PERFORMANCE
+            end_profiling("Replay-Simulation");
+            performanceLoop();
+            #endif
+
         }
         ptr += len;
 
         DcsBios::loop();                   // catch final updates
         delay((unsigned long)(frameDelay * 1000));
     }
-
     debugPrintln("[REPLAY PROTOCOL] ✅ Complete.\n");
 }
 #endif
 
 void DCSBIOS_init() {
+    #if DEBUG_PERFORMANCE
+    performanceSetup(); // this is used for profiling, see debugPrint for details
+    #endif
+
     DcsBios::setup();
     debugPrintln("\nDCSBIOS Library Initialization Complete.\n");
 
@@ -198,29 +213,19 @@ void DCSBIOS_init() {
 }
 
 void DCSBIOS_loop() {
-  #if DEBUG_USE_WIFI
+  #if DEBUG_PERFORMANCE
     begin_profiling("DcsBios::loop");
   #endif
 
   DcsBios::loop();
 
-  #if DEBUG_USE_WIFI
+  #if DEBUG_PERFORMANCE
     end_profiling("DcsBios::loop");
     performanceLoop();
   #endif
 }
 
 void sendDCSBIOSCommand(const char* label, uint16_t value) {
-
     // Any conditional logic before sending a command to DCS should go here.. (e.g cover checks)
-
     DcsBios::sendDcsBiosMessage(label, String(value).c_str());
-
-    char buf[128];
-    snprintf(buf, sizeof(buf), "[DCS-MODE] %s %u", label, value);
-    #if DEBUG_USE_WIFI
-    sendDebug(buf);
-    #else
-    debugPrint(buf);
-    #endif
 }

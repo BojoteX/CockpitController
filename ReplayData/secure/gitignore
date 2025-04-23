@@ -1,0 +1,4 @@
+# ignore /ReplayData/secure/password.h
+​/ReplayData/secure/password.h
+# but keep /ReplayData/secure/ 
+!/ReplayData/secure/

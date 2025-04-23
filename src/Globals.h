@@ -2,8 +2,7 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-#include <Arduino.h>
-// #include <Adafruit_TinyUSB.h>   
+// #include <Arduino.h>
 #include "../lib/CUtils/src/CUtils.h"             
 #include "DebugPrint.h"
 
@@ -28,8 +27,5 @@ extern bool isModeSelectorDCS();
 // So we can target difference devices for the same function from anywhere
 extern TM1637Device RA_Device;
 extern TM1637Device LA_Device;
-
-// TinyUSB
-// extern Adafruit_USBD_HID usb_hid;
 
 #endif // GLOBALS_H
