@@ -1,6 +1,62 @@
 #include "Config.h"
 
 #if DEBUG_USE_WIFI
+// #include "src/WiFiDebug.h"
+#include "src/Globals.h"
+
+WiFiUDP udp;
+bool wifiConnected = false;
+
+void sendDebug(const char* msg) {
+  if (!wifiConnected) return;
+  udp.beginPacket(IP_ADDRESS, PORT);
+  udp.write((const uint8_t*)msg, strlen(msg));  
+  udp.endPacket();
+}
+
+void wifi_setup() {
+  reduceCpuFreq();
+
+  Serial.println("[WiFi DEBUG Enabled] Connecting...");  // ✅ Raw serial here!
+
+  delay(200);
+  if (WiFi.status() != WL_CONNECTED) {
+      WiFi.disconnect(true);
+      delay(200); // 🔧 Reduced, safer
+      WiFi.mode(WIFI_STA);
+      esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+  }
+
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+    delay(500);
+    Serial.print(".");  // ✅ Don't use debugPrint yet!
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\n[!] WiFi connection failed. Restarting...");
+    delay(100);  // give time to flush
+    ESP.restart();
+  }
+
+  udp.begin(PORT);
+  wifiConnected = true;
+
+  delay(250);
+
+  char buf[128];
+  snprintf(buf, sizeof(buf), "[✓] Connected | IP: %s\n", WiFi.localIP().toString().c_str());
+  sendDebug(buf);
+  debugPrint(buf);  // ✅ Now safe to use
+}
+
+#endif
+
+/*
+#include "Config.h"
+
+#if DEBUG_USE_WIFI
 #include "src/WiFiDebug.h"
 #include "src/Globals.h"
 
@@ -51,3 +107,5 @@ void wifi_setup() {
 }
 
 #endif DEBUG_USE_WIFI
+
+*/

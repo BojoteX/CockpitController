@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+void sendDebug(const char* msg);
+
 // Basic prints
 void debugPrint(const char* msg);
 void debugPrint(const String& msg);

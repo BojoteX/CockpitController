@@ -1,6 +1,5 @@
 #include "src/DebugPrint.h"
-#include "src/Globals.h"  
-#include "src/WiFiDebug.h"   
+#include "src/Globals.h"   
 #include "Config.h"   
 
 #if DEBUG_PERFORMANCE

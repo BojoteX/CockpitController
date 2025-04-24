@@ -1,4 +1,5 @@
-#define DCSBIOS_ESP32_CDC_SERIAL
+// #define DCSBIOS_ESP32_CDC_SERIAL
+#define DCSBIOS_DEFAULT_SERIAL
 #define DCSBIOS_DISABLE_SERVO
 #include <DcsBios.h>
 
