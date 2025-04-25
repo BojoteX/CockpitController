@@ -2,10 +2,6 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-#include <Arduino.h>
-#include <map>
-#include <unordered_map>
-#include <string>
 #include "Config.h"
 #include "DebugPrint.h"
 #include "../lib/CUtils/src/CUtils.h"             

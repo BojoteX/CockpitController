@@ -1,4 +1,6 @@
 #pragma once
+#include <IPAddress.h>
+#include <cstdint>
 
 #if DEBUG_USE_WIFI
 #include <WiFi.h>

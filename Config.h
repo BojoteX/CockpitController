@@ -20,10 +20,10 @@
 #define TEST_LEDS 0
 
 // Enable WiFi debug (UDP output) when set to 1; disable with 0
-#define DEBUG_USE_WIFI 1 // DEBUG_ENABLED should be set to 1 for you to see any output
+#define DEBUG_USE_WIFI 0 // DEBUG_ENABLED should be set to 1 for you to see any output
 
 // Enable Profiling for specific blocks with beginProfiling / endProfiling (not for use in production)
-#define DEBUG_PERFORMANCE 1 // DEBUG_ENABLED should be set to 1 for you to see any output
+#define DEBUG_PERFORMANCE 0 // DEBUG_ENABLED should be set to 1 for you to see any output
 
 // How frequent you want to see the performance snapshot + profiling blocks? requires DEBUG_PERFORMANCE enabled
 #define PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS 30

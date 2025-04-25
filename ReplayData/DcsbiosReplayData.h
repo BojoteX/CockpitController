@@ -1,7 +1,5 @@
 // Auto-generated binary replay blob
 #pragma once
-#include <Arduino.h>
-
 const size_t dcsbiosReplayLength = 239774;
 const uint8_t dcsbiosReplayData[] PROGMEM = {
   0x00, 0x00, 0x00, 0x40, 0x3C, 0x02, 0x55, 0x55, 0x55, 0x55, 0x00, 0x00,

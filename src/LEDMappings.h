@@ -1,6 +1,8 @@
 #ifndef LED_MAPPINGS_H
 #define LED_MAPPINGS_H
 
+#include <cstdint>
+
 inline const LEDMapping panelLEDs[] = {
   // GPIO LEDs & Analog Gauges (Servo controlled)
   {"INST_PNL_DIMMER", DEVICE_GPIO, {.gpioInfo = {6}}, true},

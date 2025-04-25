@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/MasterARMPanel.h"
 #include "src/HIDManager.h"

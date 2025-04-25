@@ -1,3 +1,6 @@
+#include <cstdint>
+#include <cstddef>
+
 struct InputMapping {
     const char* label;         // Unique selector label
     const char* source;        // Hardware source identifier

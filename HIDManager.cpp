@@ -5,6 +5,7 @@
 #include <USBHID.h>
 
 // Our regular includes
+#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"

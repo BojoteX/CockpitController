@@ -6,6 +6,8 @@
 #ifndef CUTILS_H
 #define CUTILS_H
 
+typedef uint8_t byte;
+#include <cstdint>
 #include "../../../src/Mappings.h"
 
 // Pines físicos compartidos entre dispositivos

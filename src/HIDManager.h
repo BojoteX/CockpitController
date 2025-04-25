@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+#include <WString.h>
 
 // Initialize HID device and descriptors
 void HIDManager_begin();

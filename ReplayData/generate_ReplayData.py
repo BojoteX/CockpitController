@@ -24,7 +24,6 @@ def main():
     with open(OUTPUT_HEADER, "w") as f:
         f.write("// Auto-generated binary replay blob\n")
         f.write("#pragma once\n")
-        f.write("#include <Arduino.h>\n\n")
         f.write(f"const size_t dcsbiosReplayLength = {len(binary_buffer)};\n")
         f.write("const uint8_t dcsbiosReplayData[] PROGMEM = {\n")
 

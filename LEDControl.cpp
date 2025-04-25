@@ -1,6 +1,9 @@
 // LEDControl.cpp
 // Centralized LED management implementation for TEKCreations F/A-18C Cockpit Firmware
 
+#include <Arduino.h>  // for pinMode, digitalWrite, analogWrite, delay, etc.
+#include <string>
+#include <unordered_map>
 #include "src/Globals.h"
 #include "src/LEDControl.h"
 #include "src/Mappings.h"

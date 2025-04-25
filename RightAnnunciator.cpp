@@ -1,6 +1,7 @@
 // RIGHTAnnunciator.cpp
 // Implementation for RIGHT annunciator button panel integration
 
+#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/Mappings.h"

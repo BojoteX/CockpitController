@@ -1,8 +1,9 @@
 // LEDControl.h
-// Centralized LED management header for TEKCreations F/A-18C Cockpit Firmware
 
 #ifndef LEDCONTROL_H
 #define LEDCONTROL_H
+
+#include <cstdint>
 
 // ADD THE STRUCT HERE:
 struct TM1637Device {

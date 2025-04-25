@@ -14,6 +14,7 @@
 // TEKCreations F/A-18C IR COOL Panel Firmware Logic
 // Author: Bojote
 
+#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/IRCoolPanel.h"
 #include "src/HIDManager.h"
