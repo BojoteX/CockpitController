@@ -1,11 +1,9 @@
 // LEFTAnnunciator.cpp
 // Implementation for LEFT annunciator button panel integration
 
-#include <Arduino.h>
+#include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/Mappings.h"
-#include "lib/CUtils/src/CUtils.h"
-#include "src/Globals.h"
 
 // Track previous button state for debouncing
 uint8_t prevLeftKeys = 0xFF;

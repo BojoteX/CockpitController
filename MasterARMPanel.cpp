@@ -1,7 +1,6 @@
+#include "src/Globals.h"
 #include "src/MasterARMPanel.h"
-#include "lib/CUtils/src/CUtils.h"
 #include "src/HIDManager.h"
-#include "src/debugPrint.h"
 
 // Cache local del estado
 static byte prevMasterPort0 = 0xFF;
@@ -32,8 +31,10 @@ void MasterARM_init() {
     HIDManager_setNamedButton("MASTER_ARM_DISCH",  true, !bitRead(port0, MASTER_ARM_DISCH));
 
     HIDManager_commitDeferredReport();
+
+    debugPrintf("✅ Initialized PCA Panel 0X%02X\n",MASTERARM_PCA_ADDR);
   } else {
-    debugPrintln("❌ Could not read initial state of MasterArm panel.");
+    debugPrintf("❌ Could not initialize PCA Panel 0X%02X\n",MASTERARM_PCA_ADDR);
   }
 }
 

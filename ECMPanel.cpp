@@ -11,10 +11,9 @@
 // TEKCreations F/A-18C ECM Panel Firmware Logic
 // Author: Bojote
 
+#include "src/Globals.h"
 #include "src/ECMPanel.h"
-#include "lib/CUtils/src/CUtils.h"
 #include "src/HIDManager.h"
-#include "src/debugPrint.h"
 
 // Track previous PCA9555 state for ECM panel only
 static byte prevECMPort0 = 0xFF;
@@ -35,7 +34,6 @@ enum Port0Bits {
 // Initializes panel by reading its current state and deferring USB report
 void ECM_init() {
   delay(50);  // Asegura que el PCA esté inicializado antes de leer
-  
   byte port0, port1;
   if (readPCA9555(ECM_PCA_ADDR, port0, port1)) {
     prevECMPort0 = port0;
@@ -72,8 +70,9 @@ void ECM_init() {
     // Commit all deferred button reports at once
     HIDManager_commitDeferredReport();
 
+    debugPrintf("✅ Initialized PCA Panel 0X%02X\n",ECM_PCA_ADDR);
   } else {
-    debugPrintln("❌ Could not read initial state of ECM panel.");
+    debugPrintf("❌ Could not initialize PCA Panel 0X%02X\n",ECM_PCA_ADDR);
   }
 }
 

@@ -1,11 +1,13 @@
-#include "src/PerfMonitor.h"
+#include "src/Globals.h"                  
 
 #if DEBUG_PERFORMANCE
-#include "src/Globals.h"                   	  // debugPrintln(), debugPrintf()
+#include "src/PerfMonitor.h"
 #include <esp_system.h>                   // esp_reset_reason()
 #include <esp_timer.h>                    // esp_timer_get_time()
 #include <driver/temperature_sensor.h>    // temperature_sensor_*
-#include <unordered_map>
+
+// Convert seconds to milliseconds at compile time
+#define PERFORMANCE_SNAPSHOT_INTERVAL_MS (PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS * 1000UL)
 
 // ——— Profiling state ———
 static std::unordered_map<std::string, unsigned long> _startTimes;
@@ -118,9 +120,9 @@ void perfMonitorUpdate() {
     _lastLoopUs          = nowUs;
     _busyUsAccum        += loopUs;
 
-    // 2) Only once per 10s
+    // 2) Only once per PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS
     unsigned long nowMs = millis();
-    if (nowMs - _lastReportMs < 10000UL) return;
+    if (nowMs - _lastReportMs < PERFORMANCE_SNAPSHOT_INTERVAL_MS) return;
     unsigned long windowMs = nowMs - _lastReportMs;
 
     // 3) Compute metrics

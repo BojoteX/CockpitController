@@ -1,14 +1,7 @@
 // CUtils.cpp
 // Centralized management for controllers
 
-#include <Wire.h>
-#include <vector>
-#include "CUtils.h"
 #include "../../../src/Globals.h"
-#include "../../../src/debugPrint.h"
-
-#include <map>
-#include <array>
 
 // All Controller Management is here
 #include "internal/GPIO.cpp"
@@ -49,23 +42,64 @@ void setAllPanelsLEDs(bool state) {
 // Panel Overrides
 // *****************************************************
 
+enum class PanelID : uint8_t {
+  ECM    	= 0x22,
+  BRAIN   	= 0x26,
+  ARM    	= 0x5B,
+  UNKNOWN 	= 0x00
+};
+
+PanelID getPanelID(uint8_t address) {
+  switch (address) {
+    case 0x22: return PanelID::ECM;
+    case 0x26: return PanelID::BRAIN;
+    case 0x5B: return PanelID::ARM;
+    default:   return PanelID::UNKNOWN;
+  }
+}
+
 std::map<uint8_t, String> discoveredDevices;
 // Scans the I2C bus and detects connected panels, storing results in map
+
+/*
 void scanConnectedPanels() {
   discoveredDevices.clear();
-
   delay(500); // Allow time for PCA to wake up
 
   for (uint8_t addr = 0x03; addr <= 0x77; addr++) {
     Wire.beginTransmission(addr);
     if (Wire.endTransmission() == 0) {
-      String deviceDesc = "PCA_Device_at_0x";
+      String deviceDesc = "PCA Device 0x";
       if (addr < 0x10) deviceDesc += "0";
       deviceDesc += String(addr, HEX);
       discoveredDevices[addr] = deviceDesc;
     }
   }
 }
+*/
+
+void scanConnectedPanels() {
+  discoveredDevices.clear();
+  delay(500); // PCA wake-up time
+
+  for (uint8_t addr = 0x03; addr <= 0x77; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      PanelID panel = getPanelID(addr);
+      String label;
+
+      switch (panel) {
+        case PanelID::ECM:    label = "ECM Panel"; break;
+        case PanelID::BRAIN:  label = "Brain / IRCool Panel"; break;
+        case PanelID::ARM:    label = "Master Arm Panel"; break;
+        default:              label = "Unknown Panel";
+      }
+
+      discoveredDevices[addr] = label + " at 0x" + String(addr, HEX);
+    }
+  }
+}
+
 
 // Prints a formatted list of discovered devices
 void printDiscoveredPanels() {
@@ -81,13 +115,10 @@ void printDiscoveredPanels() {
   for (auto const& device : discoveredDevices) {
     debugPrint("0x");
     if (device.first < 0x10) debugPrint("0");
-    // debugPrint(device.first, HEX);
-    debugPrintf("0x%02X", device.first);
+    debugPrintf("%02X", device.first);
     int spaces = 11 - 4; // "0xNN" is 4 chars
     for (int i = 0; i < spaces; i++) debugPrint(" ");
-    // debugPrintln(device.second);
     debugPrintf("%s\n", device.second.c_str());
-
   }
   debugPrintln("============================\n");
 }

@@ -1,5 +1,4 @@
 #pragma once
-#include "../Config.h"
 
 #if DEBUG_PERFORMANCE
 

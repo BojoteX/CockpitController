@@ -1,22 +1,16 @@
 // LEDControl.cpp
 // Centralized LED management implementation for TEKCreations F/A-18C Cockpit Firmware
 
-// ===== Load Mappings =====
+#include "src/Globals.h"
+#include "src/LEDControl.h"
 #include "src/Mappings.h"
 
-// ===== HW Controller Utilities =====
-#include "lib/CUtils/src/CUtils.h"
-
-// ===== LED Control Implementation =====
-#include "src/LEDControl.h"
-
-#include "src/Globals.h"
-#include <unordered_map>
-#include <string>
+// Actual definitions here (ONLY ONCE)
+TM1637Device RA_Device;
+TM1637Device LA_Device;
 
 // efficient LED lookup map
-std::unordered_map<std::string, LEDMapping*> ledMap;
-// std::unordered_map<std::string_view, LEDMapping*> ledMap;
+std::unordered_map<std::string, const LEDMapping*> ledMap;
 
 void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
 
@@ -102,7 +96,8 @@ void setLED(const char* label, bool state, uint8_t intensity) {
 
     auto it = ledMap.find(label);
     if (it != ledMap.end()) {
-        LEDMapping* led = it->second;
+        const LEDMapping* led = it->second;
+        // LEDMapping* led = it->second;
         switch(led->deviceType) {
 
             case DEVICE_GPIO:

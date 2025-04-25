@@ -2,24 +2,30 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-// #include <Arduino.h>
-#include "../lib/CUtils/src/CUtils.h"             
+#include <Arduino.h>
+#include <map>
+#include <unordered_map>
+#include <string>
+#include "Config.h"
 #include "DebugPrint.h"
+#include "../lib/CUtils/src/CUtils.h"             
 
 // Panel initialization functions (extern declarations)
 extern void ECM_init();
 extern void IRCool_init();
 extern void MasterARM_init();
 
-// Just to check what panels we have included
-extern bool hasIR;
-extern bool hasLA;
-extern bool hasRA;
-extern bool hasCA;
-extern bool hasLockShoot;
-extern bool hasMasterARM;
-extern bool hasECM;
+// Manual panel flags (don't change at runtime)
+static constexpr bool hasCA         = LOAD_PANEL_CA;
+static constexpr bool hasLA         = LOAD_PANEL_LA;
+static constexpr bool hasRA         = LOAD_PANEL_RA;
+static constexpr bool hasIR         = LOAD_PANEL_IR;
+static constexpr bool hasLockShoot  = LOAD_PANEL_LOCKSHOOT;
+
+// PCA panels – determined at runtime
 extern bool hasBrain;
+extern bool hasECM;
+extern bool hasMasterARM;
 
 // To Check in which mode we are operating
 extern bool isModeSelectorDCS();
@@ -29,7 +35,6 @@ extern TM1637Device RA_Device;
 extern TM1637Device LA_Device;
 
 extern bool DEBUG;
-// extern bool isModeSelectorDCS();
 extern bool debugToSerial;   // true = allow Serial prints
 extern bool debugToUDP;      // true = allow UDP prints
 

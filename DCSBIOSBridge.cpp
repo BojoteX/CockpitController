@@ -3,14 +3,12 @@
 #define DCSBIOS_DISABLE_SERVO
 #include <DcsBios.h>
 
+#include "src/Globals.h"
 #include "src/DCSBIOSBridge.h"
 #include "src/LABELS/DCSBIOSBridgeData.h"
 #include "src/LEDControl.h"
 #include "src/HIDManager.h"
 #include "src/PerfMonitor.h"
-#include "Config.h"
-#include "src/Globals.h"
-#include <unordered_map>
 
 #if DEBUG_USE_WIFI
 #include "src/WiFiDebug.h"

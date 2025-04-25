@@ -1,9 +1,7 @@
 #ifndef LED_MAPPINGS_H
 #define LED_MAPPINGS_H
 
-#ifdef DEFINE_MAPPINGS
-
-LEDMapping panelLEDs[] = {
+inline const LEDMapping panelLEDs[] = {
   // GPIO LEDs & Analog Gauges (Servo controlled)
   {"INST_PNL_DIMMER", DEVICE_GPIO, {.gpioInfo = {6}}, true},
   {"SPIN_LT", DEVICE_GPIO, {.gpioInfo = {34}}, false},
@@ -66,14 +64,6 @@ LEDMapping panelLEDs[] = {
   {"LS_SHOOT_STROBE", DEVICE_WS2812, {.ws2812Info = {2}}, false},
 };
 
-const uint16_t panelLEDsCount = sizeof(panelLEDs) / sizeof(panelLEDs[0]);
-
-#else
-
-// Extern declarations (for all other files including Mappings.h)
-extern LEDMapping panelLEDs[];
-extern const uint16_t panelLEDsCount;
-
-#endif
+inline constexpr uint16_t panelLEDsCount = sizeof(panelLEDs) / sizeof(panelLEDs[0]);
 
 #endif

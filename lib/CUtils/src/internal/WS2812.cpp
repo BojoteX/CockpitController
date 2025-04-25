@@ -1,4 +1,3 @@
-// #include <Arduino.h>
 #include "esp32-hal-rmt.h"
 
 CRGB leds[NUM_LEDS];

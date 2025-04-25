@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Arduino.h>
-
 // Initialize HID device and descriptors
 void HIDManager_begin();
 

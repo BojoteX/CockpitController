@@ -6,22 +6,7 @@
 #ifndef CUTILS_H
 #define CUTILS_H
 
-#include <Arduino.h>
 #include "../../../src/Mappings.h"
-
-#ifdef DEFINE_MAPPINGS
-
-// Actual definitions here (ONLY ONCE)
-TM1637Device RA_Device;
-TM1637Device LA_Device;
-
-#else
-
-// Extern declarations of global annunciator devices
-// extern TM1637Device RA_Device;
-// extern TM1637Device LA_Device;
-
-#endif
 
 // Pines físicos compartidos entre dispositivos
 #define GLOBAL_CLK_PIN 37
@@ -36,10 +21,6 @@ TM1637Device LA_Device;
 void GPIO_setAllLEDs(bool state);
 
 // WS2812
-// #include <FastLED.h>
-// #define NUM_LEDS 3
-// extern CRGB leds[NUM_LEDS];
-
 #define NUM_LEDS 3
 struct CRGB {uint8_t r, g, b;
   static const CRGB Black;
@@ -49,8 +30,6 @@ struct CRGB {uint8_t r, g, b;
   static const CRGB Yellow;
 };
 extern uint8_t brightness;
-
-
 void WS2812_init();
 void WS2812_setLEDColor(uint8_t ledIndex, CRGB color);
 void WS2812_clearAll();
@@ -59,7 +38,6 @@ void WS2812_allOff();
 void WS2812_sweep(const CRGB* colors, uint8_t count);
 void WS2812_testPattern();
 void WS2812_setAllLEDs(bool state);
-
 
 // TM1637
 void TM1637_setAllLEDs(bool state);
@@ -79,6 +57,8 @@ void tm1637_allOn(TM1637Device& dev);
 void tm1637_allOff(TM1637Device& dev);
 void tm1637_sweep(TM1637Device& dev, const char* deviceName);
 void tm1637_testPattern(TM1637Device& dev, const char* deviceName);
+extern TM1637Device RA_Device;
+extern TM1637Device LA_Device;
 
 // GN1640
 void GN1640_init(uint8_t clkPin, uint8_t dioPin);
@@ -106,12 +86,10 @@ static uint8_t PCA9555_cachedPortStates[256][2] = {0}; // Cache PCA9555 output p
 void PCA9555_autoInitFromLEDMap(uint8_t address);
 void PCA9555_initAsOutput(uint8_t address, uint8_t port0_output_mask, uint8_t port1_output_mask);
 void logExpanderState(uint8_t p0, uint8_t p1);
-
 bool isPCA9555LoggingEnabled();
 bool isPCA9555LoggingEnabled(); // Used for PCA Logging
 void enablePCA9555Logging(bool enable);
 void logPCA9555State(uint8_t address, byte port0, byte port1);
-
 bool readPCA9555(uint8_t address, byte &port0, byte &port1);
 void initPCA9555AsInput(uint8_t address);
 bool shouldLogChange(uint8_t address, byte port0, byte port1);

@@ -1,22 +1,19 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
-// bool DEBUG = true;
-
 // -- Serial Configuration --
 #define BAUD_RATE 250000                // Not used, just legacy 
 #define SERIAL_STARTUP_DELAY 3000       // Delay (ms) allowing Serial Monitor to connect
 
-#include "Config.h"
-
 // -- Project Headers --
-#define DEFINE_MAPPINGS
-#include "src/HIDManager.h"
 #include "src/Globals.h"
+#include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
-
-
 #include <Wire.h>
+
+#if DEBUG_PERFORMANCE
+#include "src/PerfMonitor.h"
+#endif
 
 #if DEBUG_USE_WIFI
 #include "src/WiFiDebug.h"
@@ -27,9 +24,10 @@
 #define SCL_PIN 9                      // I2C Clock Pin
 #define MODE_SWITCH_PIN 33             // Mode Selection Pin (DCS-BIOS/HID)
 
-// Panels included
-bool hasCA = false, hasLA = false, hasRA = false, hasIR = false,
-     hasLockShoot = false, hasBrain = false, hasECM = false, hasMasterARM = false;
+// PCA Only panels will be autodetected
+bool hasBrain = false;
+bool hasECM = false;
+bool hasMasterARM = false;
 
 // is DCS connected?
 bool dcsConnected = false; 
@@ -51,13 +49,15 @@ bool isModeSelectorDCS() {
 
 // Arduino Setup Routine
 void setup() {
-
-  // Initialize serial before anything so we can debug and print all messages
-  delay(1000);
   Serial.begin(BAUD_RATE); 
   unsigned long start = millis();
   while (!Serial && (millis() - start < SERIAL_STARTUP_DELAY)) delay(1);
-  //debugSetOutput(debugToSerial, debugToUDP);
+  
+  #if VERBOSE_MODE
+  debugSetOutput(true, true); // First parameter is output to Serial, second one is output to UDP (if DEBUG_USE_WIFI enabled)
+  #else
+  debugSetOutput(debugToSerial, debugToUDP);
+  #endif
 
   #if DEBUG_USE_WIFI
   wifi_setup();
@@ -86,13 +86,6 @@ void setup() {
 
   // Show PCA Panels we discovered
   printDiscoveredPanels();
-
-  // Choose panels that are present only (PCA Panels are detected automatically)
-  hasCA = false;        // Caution Advisory Panel
-  hasLA = true;         // Left Annunciator
-  hasRA = false;        // Right Annunciator
-  hasIR = false;        // IR Cool Panel
-  hasLockShoot = true; // LockShoot Panel
 
   // Automatic PCA Panel detection (use the i2c scanner to get addresses)
   hasBrain     = discoveredDevices.count(0x26); // Brain Controller
@@ -126,7 +119,7 @@ void setup() {
   if (hasLA) LeftAnnunciator_init();
   if (hasRA) RightAnnunciator_init();
 
-  debugPrintln("Initializing PCA Panels....");
+  debugPrint("Initializing PCA Panels....");
   if (hasIR) IRCool_init();
   if (hasECM) ECM_init();
   if (hasMasterARM) MasterARM_init();
@@ -135,13 +128,15 @@ void setup() {
   const char* activePanels[7];
   int panelCount = 0;
 
-  if (hasIR) activePanels[panelCount++] = "IR";
-  if (hasLA) activePanels[panelCount++] = "LA";
-  if (hasRA) activePanels[panelCount++] = "RA";
-  if (hasCA) activePanels[panelCount++] = "CA";
-  if (hasLockShoot) activePanels[panelCount++] = "LOCKSHOOT";
-  if (hasECM) activePanels[panelCount++] = "ECM";
-  if (hasMasterARM) activePanels[panelCount++] = "ARM";
+  #define ADD_PANEL_IF_ENABLED(flag, name) if (flag) activePanels[panelCount++] = name;
+
+  ADD_PANEL_IF_ENABLED(hasIR, "IR");
+  ADD_PANEL_IF_ENABLED(hasLA, "LA");
+  ADD_PANEL_IF_ENABLED(hasRA, "RA");
+  ADD_PANEL_IF_ENABLED(hasCA, "CA");
+  ADD_PANEL_IF_ENABLED(hasLockShoot, "LOCKSHOOT");
+  ADD_PANEL_IF_ENABLED(hasECM, "ECM");
+  ADD_PANEL_IF_ENABLED(hasMasterARM, "ARM");
 
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
@@ -163,7 +158,11 @@ void setup() {
 
 // Arduino Loop Routine
 void loop() {
-   HIDManager_keepAlive();
+  #if DEBUG_PERFORMANCE
+    beginProfiling("Main Loop");
+  #endif
+
+  HIDManager_keepAlive();
 
   // Shadow buffer implementation for Caution Advisory to guarantee row-coherent updates 
   // Solves problem with matrix scanning and partial row writes
@@ -193,4 +192,12 @@ void loop() {
 
   // DCS-BIOS Bridge loop
   DCSBIOS_loop();
+
+  #if DEBUG_PERFORMANCE
+  endProfiling("Main Loop");
+  #endif
+
+  #if DEBUG_PERFORMANCE
+  perfMonitorUpdate();
+  #endif
 }

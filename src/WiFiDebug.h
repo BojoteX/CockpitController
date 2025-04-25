@@ -1,7 +1,4 @@
 #pragma once
-#include "../Config.h"
-#include <Arduino.h>
-#include <stdint.h>
 
 #if DEBUG_USE_WIFI
 #include <WiFi.h>
@@ -20,12 +17,3 @@ inline void wifiDebugSetRemote(IPAddress, uint16_t) {}
 inline void wifiDebugPrint(const char*) {}
 inline void wifiDebugPrintln(const char*) {}
 #endif
-
-/*
-#if DEBUG_USE_WIFI
-extern WiFiUDP udp;
-extern bool wifiConnected;
-void sendDebug(const char* msg);
-void wifi_setup();
-#endif
-*/

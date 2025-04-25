@@ -4,8 +4,6 @@
 #ifndef LEDCONTROL_H
 #define LEDCONTROL_H
 
-#include <Arduino.h>
-
 // ADD THE STRUCT HERE:
 struct TM1637Device {
     uint8_t clkPin;
@@ -43,9 +41,5 @@ struct LEDMapping {
 
 // ===== Public LED Control API =====
 void setLED(const char* label, bool state, uint8_t intensity = 100);
-
-// ===== External LED Map Declaration =====
-extern LEDMapping panelLEDs[];
-extern const uint16_t panelLEDsCount;
 
 #endif // LEDCONTROL_H

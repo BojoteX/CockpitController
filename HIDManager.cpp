@@ -1,12 +1,12 @@
 // HIDManager.cpp - Corrected Refactor for ESP32 Arduino Core 3.2.0 (No TinyUSB)
 
-#include <Arduino.h>
-#include <map>
-#include <unordered_map>
+// Load TinyUSB
 #include <USB.h>
 #include <USBHID.h>
-#include "src/HIDManager.h"
+
+// Our regular includes
 #include "src/Globals.h"
+#include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
 #include "src/Mappings.h"
 

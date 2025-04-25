@@ -14,10 +14,9 @@
 // TEKCreations F/A-18C IR COOL Panel Firmware Logic
 // Author: Bojote
 
+#include "src/Globals.h"
 #include "src/IRCoolPanel.h"
-#include "lib/CUtils/src/CUtils.h"
 #include "src/HIDManager.h"
-#include "src/debugPrint.h"
 
 // Previous state cache for change detection
 static byte prevIRCPort0 = 0xFF;
@@ -67,8 +66,9 @@ void IRCool_init() {
     // Commit all deferred button states
     HIDManager_commitDeferredReport();
 
+    debugPrintf("✅ Initialized PCA Panel 0X%02X\n",IRCOOL_PCA_ADDR);
   } else {
-    debugPrintln("❌ Could not read initial state of IRCool panel.");
+    debugPrintf("❌ Could not initialize PCA Panel 0X%02X\n",IRCOOL_PCA_ADDR);
   }
 }
 
