@@ -3,16 +3,15 @@ import socket
 # Show IP of this machine
 hostname = socket.gethostname()
 local_ip = socket.gethostbyname(hostname)
-print(f"[📡] This machine's IP address: {local_ip}")
 
 # === Configuration ===
-UDP_PORT = 12345
+UDP_PORT = 4210
 BUFFER_SIZE = 1024
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('', UDP_PORT))
 
-print(f"[✓] Listening for ESP32 debug messages on UDP port {UDP_PORT}...\n")
+print(f"[✓] Listening for ESP32 debug messages on IP address: {local_ip} UDP port {UDP_PORT}...\n")
 
 try:
     while True:

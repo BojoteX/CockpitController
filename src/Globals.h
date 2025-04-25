@@ -28,4 +28,9 @@ extern bool isModeSelectorDCS();
 extern TM1637Device RA_Device;
 extern TM1637Device LA_Device;
 
+extern bool DEBUG;
+// extern bool isModeSelectorDCS();
+extern bool debugToSerial;   // true = allow Serial prints
+extern bool debugToUDP;      // true = allow UDP prints
+
 #endif // GLOBALS_H

@@ -18,7 +18,6 @@
 std::unordered_map<std::string, LEDMapping*> ledMap;
 // std::unordered_map<std::string_view, LEDMapping*> ledMap;
 
-
 void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
 
     // PCA9555 LEDs: Only init if panel detected

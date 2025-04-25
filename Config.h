@@ -1,26 +1,26 @@
 #pragma once
 
-// Misc Options Activate with 1 (ON) or 0 (OFF)
-#define DEBUG_USE_WIFI 1
+// Simulae a DCS stream to check your panel is working
 #define IS_REPLAY 0
-#define DEBUG_PERFORMANCE 1
+
+// Just add verbosity and lots of information on what your device is doing
+#define DEBUG_ENABLED 0
+
+// If DEBUG_ENABLED and TEST_LEDS is active you see a Menu when you start the device to test LEDS via console  
 #define TEST_LEDS 0
 
-#if DEBUG_USE_WIFI
-  #include <WiFi.h>
-  #include <WiFiUdp.h>
-  #include "esp_wifi.h"
-  #define WIFI_SSID "MRI"
-  #define WIFI_PASS "4458e8c3c2"
-  const IPAddress IP_ADDRESS(192, 168, 4, 22);
-  const int PORT = 12345;
-#endif
+// Enable WiFi debug (UDP output) when set to 1; disable with 0
+#define DEBUG_USE_WIFI 0 // DEBUG_ENABLED should be set to 1 for you to see any output
 
-#ifdef DEFINE_MAPPINGS
-bool DEBUG = true;
-bool hasCA = false, hasLA = false, hasRA = false, hasIR = false,
-     hasLockShoot = false, hasBrain = false, hasECM = false, hasMasterARM = false;
-#else
-extern bool DEBUG;
-extern bool isModeSelectorDCS();
+// Enable Profiling for specific blocks with beginProfiling / endProfiling (not for use in production)
+#define DEBUG_PERFORMANCE 0 // DEBUG_ENABLED should be set to 1 for you to see any output
+
+#if DEBUG_USE_WIFI
+// Wi-Fi network credentials
+static const char* WIFI_SSID = "Metro5600";
+static const char* WIFI_PASS = "4458e8c3c2";
+// Debug UDP destination
+#include <Arduino.h> // for IPAddress
+static const IPAddress DEBUG_REMOTE_IP(192, 168, 7, 163);
+static const uint16_t DEBUG_REMOTE_PORT = 4210;
 #endif

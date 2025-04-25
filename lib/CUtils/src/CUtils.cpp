@@ -23,6 +23,8 @@
 //
 //
 // ********************************************************
+
+/*
 void setPanelAllLEDs(const char* panelPrefix, bool state) {
     for (int i = 0; i < panelLEDsCount; i++) {
         if (strncmp(panelLEDs[i].label, panelPrefix, strlen(panelPrefix)) == 0 &&
@@ -41,6 +43,7 @@ void setAllPanelsLEDs(bool state) {
     GN1640_setAllLEDs(state);
     WS2812_setAllLEDs(state);
 }
+*/
 
 // *****************************************************
 // Panel Overrides
@@ -78,10 +81,13 @@ void printDiscoveredPanels() {
   for (auto const& device : discoveredDevices) {
     debugPrint("0x");
     if (device.first < 0x10) debugPrint("0");
-    debugPrint(device.first, HEX);
+    // debugPrint(device.first, HEX);
+    debugPrintf("0x%02X", device.first);
     int spaces = 11 - 4; // "0xNN" is 4 chars
     for (int i = 0; i < spaces; i++) debugPrint(" ");
-    debugPrintln(device.second);
+    // debugPrintln(device.second);
+    debugPrintf("%s\n", device.second.c_str());
+
   }
   debugPrintln("============================\n");
 }
@@ -103,9 +109,12 @@ void printLEDMenu() {
   int colWidth = 25;
 
   for (int i = 0; i < panelLEDsCount; i++) {
-    debugPrint(displayedCount);
+    // debugPrint(displayedCount);
+    debugPrintf("%d", displayedCount);
+
     debugPrint(": ");
-    debugPrint(panelLEDs[i].label);
+    // debugPrint(panelLEDs[i].label);
+    debugPrintf("%s", panelLEDs[i].label);
 
     int len = strlen(panelLEDs[i].label);
     for (int s = 0; s < colWidth - len; s++) debugPrint(" ");
@@ -130,20 +139,19 @@ void handleLEDSelection() {
     if (userSelection >= 0 && userSelection < displayedCount) {
       int actualIndex = displayedIndexes[userSelection];
       debugPrint("Activating LED: ");
-      debugPrintln(panelLEDs[actualIndex].label);
+      // debugPrintln(panelLEDs[actualIndex].label);
+      debugPrintf("%s\n", panelLEDs[actualIndex].label);
 
       setLED(panelLEDs[actualIndex].label, true, 100);
       delay(5000);
       setLED(panelLEDs[actualIndex].label, false, 0);
 
       debugPrint("Deactivated LED: ");
-      debugPrintln(panelLEDs[actualIndex].label);
+      // debugPrintln(panelLEDs[actualIndex].label);
+      debugPrintf("%s\n", panelLEDs[actualIndex].label);
 
-      // Clear screen
-      debugWrite(27);
-      debugPrint("[2J");
-      debugWrite(27);
-      debugPrint("[H");
+      // Clear the screen
+      debugPrintf("\033[2J\033[H");
 
       printLEDMenu();
     } else {

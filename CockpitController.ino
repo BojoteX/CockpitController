@@ -1,16 +1,21 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
+// bool DEBUG = true;
+
 // -- Serial Configuration --
 #define BAUD_RATE 250000                // Not used, just legacy 
 #define SERIAL_STARTUP_DELAY 3000       // Delay (ms) allowing Serial Monitor to connect
 
+#include "Config.h"
+
 // -- Project Headers --
 #define DEFINE_MAPPINGS
 #include "src/HIDManager.h"
-#include "src/DCSBIOSBridge.h"
 #include "src/Globals.h"
-#include "Config.h"
+#include "src/DCSBIOSBridge.h"
+
+
 #include <Wire.h>
 
 #if DEBUG_USE_WIFI
@@ -21,6 +26,10 @@
 #define SDA_PIN 8                      // I2C Data Pin
 #define SCL_PIN 9                      // I2C Clock Pin
 #define MODE_SWITCH_PIN 33             // Mode Selection Pin (DCS-BIOS/HID)
+
+// Panels included
+bool hasCA = false, hasLA = false, hasRA = false, hasIR = false,
+     hasLockShoot = false, hasBrain = false, hasECM = false, hasMasterARM = false;
 
 // is DCS connected?
 bool dcsConnected = false; 
@@ -48,6 +57,7 @@ void setup() {
   Serial.begin(BAUD_RATE); 
   unsigned long start = millis();
   while (!Serial && (millis() - start < SERIAL_STARTUP_DELAY)) delay(1);
+  //debugSetOutput(debugToSerial, debugToUDP);
 
   #if DEBUG_USE_WIFI
   wifi_setup();

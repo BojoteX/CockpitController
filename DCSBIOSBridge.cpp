@@ -7,6 +7,7 @@
 #include "src/LABELS/DCSBIOSBridgeData.h"
 #include "src/LEDControl.h"
 #include "src/HIDManager.h"
+#include "src/PerfMonitor.h"
 #include "Config.h"
 #include "src/Globals.h"
 #include <unordered_map>
@@ -35,7 +36,7 @@ public:
     void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
 
         #if DEBUG_PERFORMANCE
-        begin_profiling("onDcsBiosWrite");
+        beginProfiling("onDcsBiosWrite");
         #endif
 
         static std::unordered_map<const char*, uint16_t> prev;
@@ -53,7 +54,7 @@ public:
         }
 
         #if DEBUG_PERFORMANCE
-        end_profiling("onDcsBiosWrite");
+        endProfiling("onDcsBiosWrite");
         #endif
 
     }
@@ -64,10 +65,10 @@ DcsBiosSniffer mySniffer;
 // This is to determine mission start and properly initialize cockpit and syncronize with our hardware.
 void onAircraftName(char* str) {
 
-    #if DEBUG_USE_WIFI
     char buf[128];
     snprintf(buf, sizeof(buf), "[AIRCRAFT] %s.\n", str);
-    sendDebug(buf);
+    #if DEBUG_USE_WIFI
+    wifiDebugPrint(buf);
     #else
     debugPrintf("[AIRCRAFT] %s.\n", str);
     #endif
@@ -120,7 +121,7 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
         char buf[128];
         snprintf(buf, sizeof(buf), "[LED] %s is set to %u", label, value);
         #if DEBUG_USE_WIFI
-        sendDebug(buf); 
+        wifiDebugPrint(buf); 
         #else
         debugPrintln(buf);    
         #endif
@@ -131,7 +132,7 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
             char buf[128];
             snprintf(buf, sizeof(buf), "[LED] %s Intensity was set to 0", label);
             #if DEBUG_USE_WIFI
-            sendDebug(buf);        
+            wifiDebugPrint(buf);        
             #else
             debugPrintln(buf);
             #endif
@@ -141,7 +142,7 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
             char buf[128];
             snprintf(buf, sizeof(buf), "[LED] %s Intensity %u\%.", label, value);
             #if DEBUG_USE_WIFI
-            sendDebug(buf);        
+            wifiDebugPrint(buf);        
             #else
             debugPrintln(buf);
             #endif
@@ -172,7 +173,7 @@ void DcsbiosProtocolReplay() {
         for (uint16_t i = 0; i < len; i++) {
 
             #if DEBUG_PERFORMANCE
-            begin_profiling("Replay-Simulation");
+            beginProfiling("Replay-Simulation");
             #endif
 
             uint8_t b = pgm_read_byte(ptr + i);
@@ -181,8 +182,8 @@ void DcsbiosProtocolReplay() {
             delayMicroseconds(1);          // simulate serial pace
 
             #if DEBUG_PERFORMANCE
-            end_profiling("Replay-Simulation");
-            performanceLoop();
+            endProfiling("Replay-Simulation");
+            perfMonitorUpdate();
             #endif
 
         }
@@ -198,7 +199,7 @@ void DcsbiosProtocolReplay() {
 void DCSBIOS_init() {
 
     #if DEBUG_PERFORMANCE
-    performanceSetup(); // this is used for profiling, see debugPrint for details
+    initPerfMonitor(); // this is used for profiling, see debugPrint for details
     #endif
 
     DcsBios::setup();
@@ -212,14 +213,14 @@ void DCSBIOS_init() {
 
 void DCSBIOS_loop() {
   #if DEBUG_PERFORMANCE
-    begin_profiling("DcsBios::loop");
+    beginProfiling("DcsBios::loop");
   #endif
 
   DcsBios::loop();
 
   #if DEBUG_PERFORMANCE
-    end_profiling("DcsBios::loop");
-    performanceLoop();
+    endProfiling("DcsBios::loop");
+    perfMonitorUpdate();
   #endif
 }
 

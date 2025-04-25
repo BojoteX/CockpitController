@@ -263,6 +263,68 @@ void logPCA9555State(uint8_t address, byte port0, byte port1) {
     if (bitRead(prev0, b) != bitRead(port0, b)) {
       const char* label = resolveInputLabel(address, 0, b);
 
+      debugPrintf("⚡PCA 0x%02X ", address);
+      logExpanderState(port0, port1);
+      debugPrint(" ");
+
+      if (!label) {
+        debugPrint("→ Port0 Bit ");
+        debugPrintf("%d ", b);
+        debugPrint(bitRead(port0, b) ? "HIGH → " : "LOW → ");
+        debugPrint("❌ Not mapped");
+      } else {
+        debugPrintf("⚠️ CRITICAL LOGIC ERROR: Bit %d → %s on PCA 0x%02X is mapped but triggered no action 🤖💥", b, label, address);
+      }
+
+      printedNewLine = true;
+    }
+  }
+
+  for (int b = 0; b < 8; b++) {
+    if (bitRead(prev1, b) != bitRead(port1, b)) {
+      const char* label = resolveInputLabel(address, 1, b);
+
+      if (printedNewLine) debugPrintln("");
+
+      debugPrintf("⚡PCA 0x%02X ", address);
+      logExpanderState(port0, port1);
+      debugPrint(" ");
+
+      if (!label) {
+        debugPrint("→ Port1 Bit ");
+        debugPrintf("%d ", b);
+        debugPrint(bitRead(port1, b) ? "HIGH → " : "LOW → ");
+        debugPrint("❌ Not mapped");
+      } else {
+        debugPrintf("⚠️ CRITICAL LOGIC ERROR: Bit %d → %s on PCA 0x%02X is mapped but triggered no action 🤖💥", b, label, address);
+      }
+
+      printedNewLine = true;
+    }
+  }
+
+  debugPrintln("");
+
+  // 🔄 Update cache
+  prevPort0Cache[idx] = port0;
+  prevPort1Cache[idx] = port1;
+}
+
+
+/*
+void logPCA9555State(uint8_t address, byte port0, byte port1) {
+  int idx = getCacheIndex(address);
+  if (idx < 0) return;
+
+  byte prev0 = prevPort0Cache[idx];
+  byte prev1 = prevPort1Cache[idx];
+
+  bool printedNewLine = false;
+
+  for (int b = 0; b < 8; b++) {
+    if (bitRead(prev0, b) != bitRead(port0, b)) {
+      const char* label = resolveInputLabel(address, 0, b);
+
       debugPrint("⚡PCA 0x");
       debugPrint(address, HEX);
       logExpanderState(port0, port1);
@@ -325,3 +387,4 @@ void logPCA9555State(uint8_t address, byte port0, byte port1) {
   prevPort0Cache[idx] = port0;
   prevPort1Cache[idx] = port1;
 }
+*/
