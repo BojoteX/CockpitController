@@ -139,11 +139,15 @@ void HIDManager_commitDeferredReport() {
   gp.sendReport(report.raw, sizeof(report));
 }
 
-// HID Keep Alive
+// HID Poll Rate / Send Reports
+// Sends a HID report at the configured polling rate (in Hz)
+// Example: 250Hz → sends every 4ms
 void HIDManager_keepAlive() {
+  static const uint16_t pollingRateHz = 250;    // Set your desired polling rate here
+  static const unsigned long pollingIntervalMs = 1000 / pollingRateHz; // Calculated interval
   static unsigned long lastRefresh = 0;
   if (!HID.ready()) return;
-  if (millis() - lastRefresh > 100) {
+  if (millis() - lastRefresh >= pollingIntervalMs) {
     gp.sendReport(report.raw, sizeof(report));
     lastRefresh = millis();
   }
