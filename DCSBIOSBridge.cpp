@@ -338,8 +338,8 @@ void sendDCSBIOSCommand(const char* label, uint16_t value) {
     char valueStr[10];
     snprintf(valueStr, sizeof(valueStr), "%u", value); // safely format value into a string
 
-    DcsBios::tryToSendDcsBiosMessage(label, valueStr);
-    // DcsBios::sendDcsBiosMessage(label, valueStr);
+    // DcsBios::tryToSendDcsBiosMessage(label, valueStr);
+    DcsBios::sendDcsBiosMessage(label, valueStr);
 
     #if VERBOSE_PERFORMANCE_ONLY
         wifiDebugPrintf("🛩️ DCS Command Sent: %s %s\n", label, valueStr);

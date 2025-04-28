@@ -55,6 +55,11 @@ void measureI2Cspeed(uint8_t deviceAddr) {
 
 // Arduino Setup Routine
 void setup() {
+
+  // Activates during DEBUG mode
+  enablePCA9555Logging(0);
+
+  // Init DCSBIOS (Includes serial)
   DCSBIOS_init();
 
   // Just use to override. Not really needed.
@@ -72,9 +77,6 @@ void setup() {
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
 
-  // Always 1 during setup, DEBUG = true will keep it that way in main loop
-  enablePCA9555Logging(1);
-
   // I2C Initialization
   Wire.begin(SDA_PIN, SCL_PIN);
 
@@ -82,7 +84,7 @@ void setup() {
   Wire.setClock(400000);
   #endif
 
-// Detect Panels (They are off by default)
+  // Detect Panels (They are off by default)
   scanConnectedPanels();
 
   debugPrintln("\n=== Cockpit Brain Controller Initialization ===");
@@ -118,7 +120,7 @@ void setup() {
     Wire.endTransmission();
   }
 
- // Just for reference, measures PCA9555 bus speed
+  // Just for reference, measures PCA9555 bus speed
   measureI2Cspeed(0x26);
 
   // Active Panels for LED Initialization
@@ -158,10 +160,10 @@ void setup() {
   }
   else {
     // Ready to go!
-    enablePCA9555Logging(0);
     debugPrintln("Device is now ready!");
   }
   debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
+
 }
 
 // Arduino Loop Routine
@@ -182,7 +184,8 @@ void loop() {
 
   if (hasLA) LeftAnnunciator_loop();
   if (hasRA) RightAnnunciator_loop();
-  if (hasIR) IRCool_loop();
+
+  if (hasIR) IRCool_loop();  
 
   if (hasECM) ECM_loop();
   if (hasMasterARM) MasterARM_loop();
@@ -209,4 +212,5 @@ void loop() {
   #if DEBUG_PERFORMANCE
   perfMonitorUpdate();
   #endif
+
 }
