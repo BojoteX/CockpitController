@@ -8,7 +8,6 @@
 // Shared across all panels GPIO 8 (SDA) and GPIO 9 (SCL)
 
 // ECMPanel.cpp
-// TEKCreations F/A-18C ECM Panel Firmware Logic
 // Author: Bojote
 
 #include <Arduino.h>
@@ -41,19 +40,19 @@ void ECM_init() {
     prevECMPort1 = port1;
 
     // Momentary button (pressed = LOW)
-    HIDManager_setNamedButton("JETT_SEL", true, !bitRead(port0, JETT_SEL));
+    HIDManager_setNamedButton("CMSD_JET_SEL_BTN", true, !bitRead(port0, JETT_SEL));
     
     // DISPENSER 3-pos group: OFF / BYPASS / ON (default)
     if (!bitRead(port0, DISPENSER_OFF))
-      HIDManager_setNamedButton("DISPENSER_OFF", true);
+      HIDManager_setNamedButton("CMSD_DISPENSE_SW_OFF", true);
     else if (!bitRead(port0, DISPENSER_BYPASS))
-      HIDManager_setNamedButton("DISPENSER_BYPASS", true);
+      HIDManager_setNamedButton("CMSD_DISPENSE_SW_BYPASS", true);
     else
-      HIDManager_setNamedButton("DISPENSER_ON", true);
+      HIDManager_setNamedButton("CMSD_DISPENSE_SW_ON", true);
 
     // AUX_REL 2-pos switch: ENABLE / NORM
     HIDManager_setNamedButton(
-      bitRead(port0, AUX_REL) ? "AUX_REL_ENABLE" : "AUX_REL_NORM", true
+      bitRead(port0, AUX_REL) ? "AUX_REL_SW_ENABLE" : "AUX_REL_SW_NORM", true
     );
 
     // EMC Selector (4-pos rotary via 4 bits)
@@ -79,55 +78,57 @@ void ECM_init() {
 
 // Runtime loop for polling and reacting to state changes
 void ECM_loop() {
+  // Adjust polling rate
+  static unsigned long lastECMPoll = 0;
+  if (!shouldPollMs(lastECMPoll)) return;
+
   byte port0, port1;
   if (!readPCA9555(ECM_PCA_ADDR, port0, port1)) return;
 
   // JETT_SEL - Momentary press detection
-  if (bitRead(prevECMPort0, JETT_SEL) != bitRead(port0, JETT_SEL)) {
-    HIDManager_setNamedButton("JETT_SEL", false, !bitRead(port0, JETT_SEL));
+  bool currJettsel = bitRead(port0, JETT_SEL);
+  if (bitRead(prevECMPort0, JETT_SEL) != currJettsel) {
+    HIDManager_setNamedButton("CMSD_JET_SEL_BTN", false, !currJettsel);
   }
 
   // DISPENSER 3-pos switch
-  if ((bitRead(prevECMPort0, DISPENSER_BYPASS) != bitRead(port0, DISPENSER_BYPASS)) ||
-      (bitRead(prevECMPort0, DISPENSER_OFF) != bitRead(port0, DISPENSER_OFF))) {
-    if (!bitRead(port0, DISPENSER_OFF))
-      HIDManager_setNamedButton("DISPENSER_OFF");
-    else if (!bitRead(port0, DISPENSER_BYPASS))
-      HIDManager_setNamedButton("DISPENSER_BYPASS");
+  bool currDispBypass = bitRead(port0, DISPENSER_BYPASS);
+  bool currDispOff    = bitRead(port0, DISPENSER_OFF);
+  if ((bitRead(prevECMPort0, DISPENSER_BYPASS) != currDispBypass) ||
+      (bitRead(prevECMPort0, DISPENSER_OFF) != currDispOff)) {
+    if (!currDispOff)
+      HIDManager_setNamedButton("CMSD_DISPENSE_SW_OFF");
+    else if (!currDispBypass)
+      HIDManager_setNamedButton("CMSD_DISPENSE_SW_BYPASS");
     else
-      HIDManager_setNamedButton("DISPENSER_ON");
+      HIDManager_setNamedButton("CMSD_DISPENSE_SW_ON");
   }
 
   // AUX_REL 2-pos switch
-  if (bitRead(prevECMPort0, AUX_REL) != bitRead(port0, AUX_REL)) {
-    HIDManager_setNamedButton(
-      bitRead(port0, AUX_REL) ? "AUX_REL_ENABLE" : "AUX_REL_NORM"
-    );
+  bool currAuxRel = bitRead(port0, AUX_REL);
+  if (bitRead(prevECMPort0, AUX_REL) != currAuxRel) {
+    HIDManager_setNamedButton(currAuxRel ? "AUX_REL_SW_ENABLE" : "AUX_REL_SW_NORM");
   }
 
-  // EMC rotary selector (OFF / STBY / BIT / REC / XMIT)
+  // EMC rotary selector (OFF / STBY / BIT / REC)
   for (int bit = ECM_OFF; bit <= ECM_REC; bit++) {
-    if (bitRead(prevECMPort0, bit) != bitRead(port0, bit)) {
-      switch (bit) {
-        case ECM_OFF:
-          if (!bitRead(port0, ECM_OFF)) HIDManager_setNamedButton("ECM_MODE_SW_OFF");
-          break;
-        case ECM_STBY:
-          if (!bitRead(port0, ECM_STBY)) HIDManager_setNamedButton("ECM_MODE_SW_STBY");
-          break;
-        case ECM_BIT:
-          if (!bitRead(port0, ECM_BIT)) HIDManager_setNamedButton("ECM_MODE_SW_BIT");
-          break;
-        case ECM_REC:
-          if (!bitRead(port0, ECM_REC)) HIDManager_setNamedButton("ECM_MODE_SW_REC");
-          break;
+    bool currSelectorBit = bitRead(port0, bit);
+    if (bitRead(prevECMPort0, bit) != currSelectorBit) {
+      if (!currSelectorBit) {
+        switch (bit) {
+          case ECM_OFF:  HIDManager_setNamedButton("ECM_MODE_SW_OFF"); break;
+          case ECM_STBY: HIDManager_setNamedButton("ECM_MODE_SW_STBY"); break;
+          case ECM_BIT:  HIDManager_setNamedButton("ECM_MODE_SW_BIT"); break;
+          case ECM_REC:  HIDManager_setNamedButton("ECM_MODE_SW_REC"); break;
+        }
       }
     }
   }
 
-  // EMC XMIT (bit 0 of PORT1, not used by REC in this revision)
-  if (bitRead(prevECMPort1, 0) != bitRead(port1, 0)) {
-    if (!bitRead(port1, 0)) {
+  // EMC XMIT (bit 0 of PORT1)
+  bool currXmit = bitRead(port1, 0);
+  if (bitRead(prevECMPort1, 0) != currXmit) {
+    if (!currXmit) {
       HIDManager_setNamedButton("ECM_MODE_SW_XMIT");
     }
   }

@@ -14,5 +14,8 @@ void HIDManager_setNamedButton(const String& name, bool deferSend = false, bool 
 // Apply all deferred state changes
 void HIDManager_commitDeferredReport();
 
+// Polling logic
+bool shouldPollMs(unsigned long &lastPoll);
+
 // Makes sure our status is always seen by windows
 void HIDManager_keepAlive();

@@ -8,7 +8,8 @@
 
 typedef uint8_t byte;
 #include <cstdint>
-#include "../../../src/Mappings.h"
+#include "../../../src/InputMapping.h"
+#include "../../../src/LEDControl.h"
 
 // Pines físicos compartidos entre dispositivos
 #define GLOBAL_CLK_PIN 37
@@ -42,6 +43,17 @@ void WS2812_testPattern();
 void WS2812_setAllLEDs(bool state);
 
 // TM1637
+// ADD THE STRUCT HERE:
+struct TM1637Device {
+    uint8_t clkPin;
+    uint8_t dioPin;
+    uint8_t ledData[6];
+};
+void tm1637_addSample(TM1637Device& dev, uint8_t rawKeys);
+uint8_t tm1637_evaluateResult(TM1637Device& dev);
+void tm1637_resetSampling(TM1637Device& dev);
+bool tm1637_handleSamplingWindow(TM1637Device& dev, uint16_t& sampleCounter, uint8_t& finalKeys);
+void tm1637_startBothDevices();
 void TM1637_setAllLEDs(bool state);
 void TM1637_setPanelAllLEDs(TM1637Device &dev, bool state);
 void tm1637_init(TM1637Device &device, uint8_t clkPin, uint8_t dioPin);

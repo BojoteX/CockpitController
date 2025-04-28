@@ -1,50 +1,47 @@
 // RIGHTAnnunciator.cpp
 // Implementation for RIGHT annunciator button panel integration
 
-#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/HIDManager.h"
-#include "src/Mappings.h"
-
-// GPIO definitions are already globally defined in Mappings.h
-
-// Track previous button state for debouncing
-uint8_t prevRightKeys = 0xFF;
 
 // Initialization routine for RIGHT annunciator buttons
 void RightAnnunciator_init() {
-  HIDManager_begin();
-
-  pinMode(RA_CLK_PIN, OUTPUT);
-  pinMode(RA_DIO_PIN, OUTPUT);
-  digitalWrite(RA_CLK_PIN, HIGH);
-  digitalWrite(RA_DIO_PIN, HIGH);
-
-  // Set initial button states as released
-  HIDManager_setNamedButton("RIGHT_ANNUN_APU_FIRE", true, false);
-  HIDManager_setNamedButton("RIGHT_ANNUN_ENG_FIRE", true, false);
+  HIDManager_setNamedButton("APU_FIRE_BTN", true, false);
+  HIDManager_setNamedButton("RIGHT_FIRE_BTN", true, false);
   HIDManager_commitDeferredReport();
 
   debugPrintln("✅ RIGHT Annunciator initialized for buttons");
 }
 
-// Main loop for button state checking
 void RightAnnunciator_loop() {
-  uint8_t rightKeys = tm1637_readKeys(RA_Device);
+    static unsigned long lastRAPoll = 0;
+    if (!shouldPollMs(lastRAPoll)) return;
 
-  if (rightKeys != prevRightKeys) {
-    // RIGHT_ANNUN_APU_FIRE (bit 3 → 0x08)
-    if ((rightKeys & 0x08) != (prevRightKeys & 0x08)) {
-      bool pressed = !(rightKeys & 0x08);
-      HIDManager_setNamedButton("RIGHT_ANNUN_APU_FIRE", false, pressed);
+    static uint16_t raSampleCounter = 0;
+    static uint8_t prevFinalKeysRA = 0xFF; // Last stable evaluated keys
+
+    uint8_t finalKeys = 0;
+
+    if (tm1637_handleSamplingWindow(RA_Device, raSampleCounter, finalKeys)) {
+        if (finalKeys != prevFinalKeysRA) {
+            // Only trigger if something actually changed!
+
+            uint8_t currApuFire = (finalKeys & 0x08);
+            uint8_t prevApuFire = (prevFinalKeysRA & 0x08);
+            if (currApuFire != prevApuFire) {
+                HIDManager_setNamedButton("APU_FIRE_BTN", false, !(currApuFire));
+            }
+
+            uint8_t currEngFire = (finalKeys & 0x01);
+            uint8_t prevEngFire = (prevFinalKeysRA & 0x01);
+            if (currEngFire != prevEngFire) {
+                HIDManager_setNamedButton("RIGHT_FIRE_BTN", false, !(currEngFire));
+            }
+
+            HIDManager_commitDeferredReport();
+
+            // Update previous stable
+            prevFinalKeysRA = finalKeys;
+        }
     }
-
-    // RIGHT_ANNUN_ENG_FIRE (bit 0 → 0x01)
-    if ((rightKeys & 0x01) != (prevRightKeys & 0x01)) {
-      bool pressed = !(rightKeys & 0x01);
-      HIDManager_setNamedButton("RIGHT_ANNUN_ENG_FIRE", false, pressed);
-    }
-
-    prevRightKeys = rightKeys;
-  }
 }

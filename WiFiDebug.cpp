@@ -32,8 +32,8 @@ void scanNetworks() {
 }
 
 void wifi_setup() {
-    // scanNetworks();
-    // WiFi.setTxPower(WIFI_POWER_MINUS_1dBm); 
+    scanNetworks();
+    WiFi.setTxPower(WIFI_POWER_MINUS_1dBm); 
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     debugPrint("Connecting...");
@@ -41,7 +41,7 @@ void wifi_setup() {
         delay(500);
         debugPrint(".");
     }
-    debugPrintln( ("WiFi connected: " + WiFi.localIP().toString()).c_str() );
+    debugPrintln( (" WiFi connected: " + WiFi.localIP().toString()).c_str() );
     wifiDebugInit();
 }
 
@@ -54,6 +54,18 @@ void wifiDebugPrint(const char* msg) {
     if (WiFi.status() != WL_CONNECTED) return;
     udp.beginPacket(DEBUG_REMOTE_IP, DEBUG_REMOTE_PORT);
     udp.write((const uint8_t*)msg, strlen(msg));
+    udp.endPacket();
+}
+
+void wifiDebugPrintf(const char* format, ...) {
+    if (WiFi.status() != WL_CONNECTED) return;
+    char buf[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buf, sizeof(buf), format, args);
+    va_end(args);
+    udp.beginPacket(DEBUG_REMOTE_IP, DEBUG_REMOTE_PORT);
+    udp.write((const uint8_t*)buf, strlen(buf));
     udp.endPacket();
 }
 

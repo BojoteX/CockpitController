@@ -22,14 +22,14 @@ void MasterARM_init() {
 
     // 2-pos switch (OFF / ON)
     HIDManager_setNamedButton(
-      bitRead(port0, MASTER_ARM_SWITCH) ? "MASTER_ARM_ON" : "MASTER_ARM_OFF",
+      bitRead(port0, MASTER_ARM_SWITCH) ? "MASTER_ARM_SW_ARM" : "MASTER_ARM_SW_SAFE",
       true
     );
 
     // Momentary buttons: detect state at startup (optional)
-    HIDManager_setNamedButton("MASTER_ARM_AG",     true, !bitRead(port0, MASTER_ARM_AG));
-    HIDManager_setNamedButton("MASTER_ARM_AA",     true, !bitRead(port0, MASTER_ARM_AA));
-    HIDManager_setNamedButton("MASTER_ARM_DISCH",  true, !bitRead(port0, MASTER_ARM_DISCH));
+    HIDManager_setNamedButton("MASTER_MODE_AG",     true, !bitRead(port0, MASTER_ARM_AG));
+    HIDManager_setNamedButton("MASTER_MODE_AA",     true, !bitRead(port0, MASTER_ARM_AA));
+    HIDManager_setNamedButton("FIRE_EXT_BTN",       true, !bitRead(port0, MASTER_ARM_DISCH));
 
     HIDManager_commitDeferredReport();
 
@@ -40,27 +40,32 @@ void MasterARM_init() {
 }
 
 void MasterARM_loop() {
+
+  // Adjust polling rate
+  static unsigned long lastMasterARMPoll = 0;
+  if (!shouldPollMs(lastMasterARMPoll)) return;
+
   byte port0, port1;
   if (!readPCA9555(MASTERARM_PCA_ADDR, port0, port1)) return;
 
   // 2-position switch (OFF / ON)
   if (bitRead(prevMasterPort0, MASTER_ARM_SWITCH) != bitRead(port0, MASTER_ARM_SWITCH)) {
     HIDManager_setNamedButton(
-      bitRead(port0, MASTER_ARM_SWITCH) ? "MASTER_ARM_ON" : "MASTER_ARM_OFF"
+      bitRead(port0, MASTER_ARM_SWITCH) ? "MASTER_ARM_SW_ARM" : "MASTER_ARM_SW_SAFE"
     );
   }
 
   // Momentary buttons (like JETT_SEL)
   if (bitRead(prevMasterPort0, MASTER_ARM_AG) != bitRead(port0, MASTER_ARM_AG)) {
-    HIDManager_setNamedButton("MASTER_ARM_AG", false, !bitRead(port0, MASTER_ARM_AG));
+    HIDManager_setNamedButton("MASTER_MODE_AG", false, !bitRead(port0, MASTER_ARM_AG));
   }
 
   if (bitRead(prevMasterPort0, MASTER_ARM_AA) != bitRead(port0, MASTER_ARM_AA)) {
-    HIDManager_setNamedButton("MASTER_ARM_AA", false, !bitRead(port0, MASTER_ARM_AA));
+    HIDManager_setNamedButton("MASTER_MODE_AA", false, !bitRead(port0, MASTER_ARM_AA));
   }
 
   if (bitRead(prevMasterPort0, MASTER_ARM_DISCH) != bitRead(port0, MASTER_ARM_DISCH)) {
-    HIDManager_setNamedButton("MASTER_ARM_DISCH", false, !bitRead(port0, MASTER_ARM_DISCH));
+    HIDManager_setNamedButton("FIRE_EXT_BTN", false, !bitRead(port0, MASTER_ARM_DISCH));
   }
 
   prevMasterPort0 = port0;

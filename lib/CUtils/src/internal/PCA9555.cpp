@@ -17,6 +17,20 @@ static const char* resolveInputLabel(uint8_t addr, uint8_t port, uint8_t bit) {
   return nullptr;
 }
 
+// static const InputMapping* resolveInputMapping(uint8_t addr, uint8_t port, uint8_t bit);
+static const InputMapping* resolveInputMapping(uint8_t addr, uint8_t port, uint8_t bit) {
+  char deviceName[20];
+  snprintf(deviceName, sizeof(deviceName), "PCA_0x%02X", addr);
+  for (size_t i = 0; i < InputMappingSize; ++i) {
+    const InputMapping& m = InputMappings[i];
+    if (!m.source) continue;
+    if (strcmp(m.source, deviceName) == 0 && m.port == port && m.bit == bit) {
+      return &m;
+    }
+  }
+  return nullptr;
+}
+
 static bool isInputBitMapped(uint8_t addr, uint8_t port, uint8_t bit) {
   return resolveInputLabel(addr, port, bit) != nullptr;
 }
@@ -238,153 +252,80 @@ bool isPCA9555LoggingEnabled() {
   return loggingEnabled;
 }
 
-void logExpanderState(uint8_t p0, uint8_t p1) {
-  Serial.print(F(" → [ p0:"));
-  for (int8_t b = 6; b >= 0; --b) {
-    Serial.print((p0 >> b) & 1);
-  }
-  Serial.print(F(" | p1:"));
-  for (int8_t b = 6; b >= 0; --b) {
-    Serial.print((p1 >> b) & 1);
-  }
-  Serial.print(" ]");
-}
-
-void logPCA9555State(uint8_t address, byte port0, byte port1) {
-  int idx = getCacheIndex(address);
-  if (idx < 0) return;
-
-  byte prev0 = prevPort0Cache[idx];
-  byte prev1 = prevPort1Cache[idx];
-
-  bool printedNewLine = false;
-
-  for (int b = 0; b < 8; b++) {
-    if (bitRead(prev0, b) != bitRead(port0, b)) {
-      const char* label = resolveInputLabel(address, 0, b);
-
-      debugPrintf("⚡PCA 0x%02X ", address);
-      logExpanderState(port0, port1);
-      debugPrint(" ");
-
-      if (!label) {
-        debugPrint("→ Port0 Bit ");
-        debugPrintf("%d ", b);
-        debugPrint(bitRead(port0, b) ? "HIGH → " : "LOW → ");
-        debugPrint("❌ Not mapped");
-      } else {
-        debugPrintf("⚠️ CRITICAL LOGIC ERROR: Bit %d → %s on PCA 0x%02X is mapped but triggered no action 🤖💥", b, label, address);
-      }
-
-      printedNewLine = true;
-    }
-  }
-
-  for (int b = 0; b < 8; b++) {
-    if (bitRead(prev1, b) != bitRead(port1, b)) {
-      const char* label = resolveInputLabel(address, 1, b);
-
-      if (printedNewLine) debugPrintln("");
-
-      debugPrintf("⚡PCA 0x%02X ", address);
-      logExpanderState(port0, port1);
-      debugPrint(" ");
-
-      if (!label) {
-        debugPrint("→ Port1 Bit ");
-        debugPrintf("%d ", b);
-        debugPrint(bitRead(port1, b) ? "HIGH → " : "LOW → ");
-        debugPrint("❌ Not mapped");
-      } else {
-        debugPrintf("⚠️ CRITICAL LOGIC ERROR: Bit %d → %s on PCA 0x%02X is mapped but triggered no action 🤖💥", b, label, address);
-      }
-
-      printedNewLine = true;
-    }
-  }
-
-  debugPrintln("");
-
-  // 🔄 Update cache
-  prevPort0Cache[idx] = port0;
-  prevPort1Cache[idx] = port1;
-}
-
-
 /*
-void logPCA9555State(uint8_t address, byte port0, byte port1) {
-  int idx = getCacheIndex(address);
-  if (idx < 0) return;
-
-  byte prev0 = prevPort0Cache[idx];
-  byte prev1 = prevPort1Cache[idx];
-
-  bool printedNewLine = false;
-
-  for (int b = 0; b < 8; b++) {
-    if (bitRead(prev0, b) != bitRead(port0, b)) {
-      const char* label = resolveInputLabel(address, 0, b);
-
-      debugPrint("⚡PCA 0x");
-      debugPrint(address, HEX);
-      logExpanderState(port0, port1);
-      debugPrint(" ");
-
-      if (!label) {
-        debugPrint("→ Port0 Bit ");
-        debugPrint(b);
-        debugPrint(" ");
-        debugPrint(bitRead(port0, b) ? "HIGH → " : "LOW → ");
-        debugPrint("❌ Not mapped");
-      } else {
-        debugPrint("⚠️ CRITICAL LOGIC ERROR: Bit ");
-        debugPrint(b);
-        debugPrint(" → ");
-        debugPrint(label);
-        debugPrint(" on PCA 0x");
-        debugPrint(address, HEX);
-        debugPrint(" is mapped but triggered no action 🤖💥");
-      }
-
-      printedNewLine = true;
-    }
+void logExpanderState(uint8_t p0, uint8_t p1) {
+  debugPrint(F(" → [ p0:"));
+  for (int8_t b = 6; b >= 0; --b) {
+    debugPrint((p0 >> b) & 1);
   }
-
-  for (int b = 0; b < 8; b++) {
-    if (bitRead(prev1, b) != bitRead(port1, b)) {
-      const char* label = resolveInputLabel(address, 1, b);
-
-      if (printedNewLine) debugPrintln("");
-
-      debugPrint("⚡PCA 0x");
-      debugPrint(address, HEX);
-      logExpanderState(port0, port1);
-      debugPrint(" ");
-
-      if (!label) {
-        debugPrint("→ Port1 Bit ");
-        debugPrint(b);
-        debugPrint(" ");
-        debugPrint(bitRead(port1, b) ? "HIGH → " : "LOW → ");
-        debugPrint("❌ Not mapped");
-      } else {
-        debugPrint("⚠️ CRITICAL LOGIC ERROR: Bit ");
-        debugPrint(b);
-        debugPrint(" → ");
-        debugPrint(label);
-        debugPrint(" on PCA 0x");
-        debugPrint(address, HEX);
-        debugPrint(" is mapped but triggered no action 🤖💥");
-      }
-
-      printedNewLine = true;
-    }
+  debugPrint(F(" | p1:"));
+  for (int8_t b = 6; b >= 0; --b) {
+    debugPrint((p1 >> b) & 1);
   }
-
-  debugPrintln("");
-
-  // 🔄 Update cache
-  prevPort0Cache[idx] = port0;
-  prevPort1Cache[idx] = port1;
+  debugPrint(" ]");
 }
 */
+
+void logExpanderState(uint8_t p0, uint8_t p1) {
+  char buffer[32];
+
+  // Formatting p0
+  int idx = 0;
+  idx += snprintf(buffer + idx, sizeof(buffer) - idx, " → [ p0:");
+  for (int8_t b = 6; b >= 0; --b) {
+    idx += snprintf(buffer + idx, sizeof(buffer) - idx, "%u", (p0 >> b) & 1);
+  }
+
+  // Formatting p1
+  idx += snprintf(buffer + idx, sizeof(buffer) - idx, " | p1:");
+  for (int8_t b = 6; b >= 0; --b) {
+    idx += snprintf(buffer + idx, sizeof(buffer) - idx, "%u", (p1 >> b) & 1);
+  }
+
+  idx += snprintf(buffer + idx, sizeof(buffer) - idx, " ]");
+
+  debugPrintln(buffer);  // Send the complete buffer to your debug handler
+}
+
+void logPCA9555State(uint8_t address, byte port0, byte port1) {
+  int idx = getCacheIndex(address);
+  if (idx < 0) return;
+
+  byte prev0 = prevPort0Cache[idx];
+  byte prev1 = prevPort1Cache[idx];
+
+  bool printedNewLine = false;
+
+  for (int port = 0; port <= 1; port++) {
+    byte prev = (port == 0) ? prev0 : prev1;
+    byte curr = (port == 0) ? port0 : port1;
+
+    for (int b = 0; b < 8; b++) {
+      if (bitRead(prev, b) != bitRead(curr, b)) {
+
+        const InputMapping* mapping = resolveInputMapping(address, port, b);
+
+        if (printedNewLine) debugPrintln("");
+
+        debugPrintf("⚡PCA 0x%02X ", address);
+        logExpanderState(port0, port1);
+        debugPrint(" ");
+
+        debugPrintf("→ Port%d Bit%d ", port, b);
+
+        if (!mapping) {
+          debugPrint("❌ No label mapped");
+        } else {
+          debugPrintf("✅ DCS Command = %s", mapping->oride_label ? mapping->oride_label : "(none)");
+        }
+
+        printedNewLine = true;
+      }
+    }
+  }
+
+  debugPrintln("");
+
+  prevPort0Cache[idx] = port0;
+  prevPort1Cache[idx] = port1;
+}

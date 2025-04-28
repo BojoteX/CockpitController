@@ -1,6 +1,5 @@
 // Globals.h
-#ifndef GLOBALS_H
-#define GLOBALS_H
+#pragma once
 
 #include "Config.h"
 #include "DebugPrint.h"
@@ -33,5 +32,3 @@ extern TM1637Device LA_Device;
 extern bool DEBUG;
 extern bool debugToSerial;   // true = allow Serial prints
 extern bool debugToUDP;      // true = allow UDP prints
-
-#endif // GLOBALS_H

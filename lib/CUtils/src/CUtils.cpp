@@ -62,23 +62,6 @@ PanelID getPanelID(uint8_t address) {
 std::map<uint8_t, String> discoveredDevices;
 // Scans the I2C bus and detects connected panels, storing results in map
 
-/*
-void scanConnectedPanels() {
-  discoveredDevices.clear();
-  delay(500); // Allow time for PCA to wake up
-
-  for (uint8_t addr = 0x03; addr <= 0x77; addr++) {
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
-      String deviceDesc = "PCA Device 0x";
-      if (addr < 0x10) deviceDesc += "0";
-      deviceDesc += String(addr, HEX);
-      discoveredDevices[addr] = deviceDesc;
-    }
-  }
-}
-*/
-
 void scanConnectedPanels() {
   discoveredDevices.clear();
   delay(500); // PCA wake-up time
@@ -101,7 +84,39 @@ void scanConnectedPanels() {
   }
 }
 
+// Prints a formatted list of discovered devices
+void printDiscoveredPanels() {
+  if (discoveredDevices.empty()) {
+    debugPrintln("No I2C devices found.");
+    return;
+  }
 
+  debugPrintln("\n🔎 === Discovered I2C Devices ===");
+  debugPrintln("📋 Address    | Device Description");
+  debugPrintln("──────────────|─────────────────────────────");
+
+  for (auto const& device : discoveredDevices) {
+    // Build full line into a String first
+    String line;
+    line += "📡 0x";
+    if (device.first < 0x10) line += "0";
+    line += String(device.first, HEX);
+    line.toUpperCase();
+
+    int spaces = 11 - line.length(); // pad to column
+    for (int i = 0; i < spaces; i++) line += " ";
+
+    line += " | ";
+    line += device.second;
+
+    debugPrintln(line.c_str());
+  }
+
+  debugPrintln("────────────────────────────────────────────\n");
+}
+
+
+/*
 // Prints a formatted list of discovered devices
 void printDiscoveredPanels() {
   if (discoveredDevices.empty()) {
@@ -123,6 +138,7 @@ void printDiscoveredPanels() {
   }
   debugPrintln("============================\n");
 }
+*/
 
 // *****************************************************
 // Panel LED Detection for DEBUGING 
@@ -132,6 +148,7 @@ void printDiscoveredPanels() {
 std::vector<int> displayedIndexes(panelLEDsCount);
 int displayedCount = 0;
 
+/*
 // LED selection menu
 void printLEDMenu() {
   displayedCount = 0;
@@ -157,6 +174,38 @@ void printLEDMenu() {
       debugPrintln("");
   }
 }
+*/
+
+void printLEDMenu() {
+  displayedCount = 0;
+  
+  constexpr int columns = 3;
+  constexpr int colWidth = 25;
+  constexpr int bufSize = 4096;
+  char buffer[bufSize];
+  int cursor = 0;
+
+  cursor += snprintf(buffer + cursor, bufSize - cursor, "\n--- LED Selection Menu ---\n\n");
+
+  for (int i = 0; i < panelLEDsCount; i++) {
+    cursor += snprintf(buffer + cursor, bufSize - cursor, "%d: %s", displayedCount, panelLEDs[i].label);
+
+    int len = strlen(panelLEDs[i].label);
+    for (int s = 0; s < colWidth - len; s++) {
+      if (cursor < bufSize - 1) buffer[cursor++] = ' ';
+    }
+
+    displayedIndexes[displayedCount++] = i;
+
+    if ((i + 1) % columns == 0 || i == panelLEDsCount - 1) {
+      if (cursor < bufSize - 1) buffer[cursor++] = '\n';
+    }
+  }
+
+  buffer[cursor] = '\0'; // Null-terminate
+  debugPrint(buffer);
+}
+
 
 void handleLEDSelection() {
   while (true) {

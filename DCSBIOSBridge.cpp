@@ -1,14 +1,14 @@
-// #define DCSBIOS_ESP32_CDC_SERIAL
-#define DCSBIOS_DEFAULT_SERIAL
 #define DCSBIOS_DISABLE_SERVO
+#define DCSBIOS_ESP32_CDC_SERIAL
 #include <DcsBios.h>
-
 #include "src/Globals.h"
 #include "src/DCSBIOSBridge.h"
 #include "src/LABELS/DCSBIOSBridgeData.h"
 #include "src/LEDControl.h"
 #include "src/HIDManager.h"
+#if DEBUG_PERFORMANCE
 #include "src/PerfMonitor.h"
+#endif
 
 #if DEBUG_USE_WIFI
 #include "src/WiFiDebug.h"
@@ -23,6 +23,137 @@ namespace cover {
     volatile bool spin_recovery    = false;
 }
 
+struct PendingUpdate {
+    const char* label;
+    uint16_t value;
+    uint16_t max_value;
+};
+
+// ——— Configuration ———
+#define MAX_PENDING_UPDATES 220
+
+class DcsBiosSniffer : public DcsBios::ExportStreamListener {
+public:
+    DcsBiosSniffer() : DcsBios::ExportStreamListener(0x7400, 0x77FF), pendingUpdateCount(0), pendingUpdateOverflow(0) {}
+
+    inline uint32_t dcsHash(uint16_t addr, uint16_t mask, uint8_t shift) {
+        return ((uint32_t)addr << 16) ^ (uint32_t)mask ^ ((uint32_t)shift << 1);
+    }
+
+    void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
+        #if DEBUG_PERFORMANCE
+        beginProfiling("Listener");
+        #endif
+
+        static std::unordered_map<const char*, uint16_t> prev;
+        auto it = addressToEntries.find(addr);
+        if (it == addressToEntries.end()) {
+            #if DEBUG_PERFORMANCE
+            endProfiling("Listener");
+            #endif
+            return;
+        }
+
+        for (const DcsOutputEntry* entry : it->second) {
+            uint16_t val = (value & entry->mask) >> entry->shift;
+            if (prev[entry->label] == val) continue;
+            prev[entry->label] = val;
+
+            if (pendingUpdateCount < MAX_PENDING_UPDATES) {
+                pendingUpdates[pendingUpdateCount++] = {entry->label, val, entry->max_value};
+            } else {
+                pendingUpdateOverflow++; // 🔥 Log overflow event
+            }
+        }
+
+        #if DEBUG_PERFORMANCE
+        endProfiling("Listener");
+        #endif
+    }
+
+    void onConsistentData() override {
+        for (uint16_t i = 0; i < pendingUpdateCount; ++i) {
+            const PendingUpdate& u = pendingUpdates[i];
+            onLedChange(u.label, u.value, u.max_value);
+        }
+        pendingUpdateCount = 0; // Clear buffer for next frame
+
+        // Optional: Alert if we dropped any pending updates
+        if (pendingUpdateOverflow > 0) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "[WARNING] ⚠️ %lu pending updates were DROPPED due to overflow!", pendingUpdateOverflow);
+            #if VERBOSE_PERFORMANCE_ONLY
+                wifiDebugPrint(buf);
+            #else
+                debugPrint(buf);
+            #endif
+            pendingUpdateOverflow = 0; // reset counter after reporting
+        }
+    }
+
+private:
+    PendingUpdate pendingUpdates[MAX_PENDING_UPDATES];
+    uint16_t pendingUpdateCount;
+    uint32_t pendingUpdateOverflow;
+};
+DcsBiosSniffer mySniffer;
+
+/*
+class DcsBiosSniffer : public DcsBios::ExportStreamListener {
+public:
+    DcsBiosSniffer() : DcsBios::ExportStreamListener(0x7400, 0x77FF) {
+        pendingUpdates.reserve(180);  // Safe headroom for maximum DCS-BIOS frame load
+    }
+
+    inline uint32_t dcsHash(uint16_t addr, uint16_t mask, uint8_t shift) {
+        return ((uint32_t)addr << 16) ^ (uint32_t)mask ^ ((uint32_t)shift << 1);
+    }
+
+    void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
+
+        #if DEBUG_PERFORMANCE
+        beginProfiling("Listener");
+        #endif
+
+        static std::unordered_map<const char*, uint16_t> prev;
+        auto it = addressToEntries.find(addr);
+        if (it == addressToEntries.end()) {
+            #if DEBUG_PERFORMANCE
+            endProfiling("Listener");
+            #endif
+            return;
+        }
+
+        for (const DcsOutputEntry* entry : it->second) {
+            uint16_t val = (value & entry->mask) >> entry->shift;
+
+            if (prev[entry->label] == val) continue;
+            prev[entry->label] = val;
+
+            // Instead of immediate onLedChange, we queue
+            pendingUpdates.push_back({entry->label, val, entry->max_value});
+        }
+
+        #if DEBUG_PERFORMANCE
+        endProfiling("Listener");
+        #endif
+    }
+
+    // Queue updates and update in one go.
+    void onConsistentData() override {
+        for (const PendingUpdate& u : pendingUpdates) {
+            onLedChange(u.label, u.value, u.max_value);
+        }
+        pendingUpdates.clear();
+    }
+
+private:
+    std::vector<PendingUpdate> pendingUpdates;
+};
+DcsBiosSniffer mySniffer;
+*/
+
+/*
 class DcsBiosSniffer : public DcsBios::ExportStreamListener {
 public:
     DcsBiosSniffer() : DcsBios::ExportStreamListener(0x7400, 0x77FF) {}
@@ -59,17 +190,14 @@ public:
     
 };
 DcsBiosSniffer mySniffer;
+*/
 
 // This is to determine mission start and properly initialize cockpit and syncronize with our hardware.
 void onAircraftName(char* str) {
 
     char buf[128];
     snprintf(buf, sizeof(buf), "[AIRCRAFT] %s.\n", str);
-    #if DEBUG_USE_WIFI
-    wifiDebugPrint(buf);
-    #else
     debugPrintf("[AIRCRAFT] %s.\n", str);
-    #endif
 
     // Initialize panel switches
     if (hasIR) IRCool_init();
@@ -118,32 +246,20 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
         setLED(label, value > 0);
         char buf[128];
         snprintf(buf, sizeof(buf), "[LED] %s is set to %u", label, value);
-        #if DEBUG_USE_WIFI
-        wifiDebugPrint(buf); 
-        #else
         debugPrintln(buf);    
-        #endif
     } else {
         uint8_t intensity = (value * 100UL) / max_value;
         if (intensity < 3) {
             setLED(label, false, 0);  // treat as OFF
             char buf[128];
             snprintf(buf, sizeof(buf), "[LED] %s Intensity was set to 0", label);
-            #if DEBUG_USE_WIFI
-            wifiDebugPrint(buf);        
-            #else
             debugPrintln(buf);
-            #endif
         } else {
             if (intensity > 97) intensity = 100;
             setLED(label, true, intensity);
             char buf[128];
             snprintf(buf, sizeof(buf), "[LED] %s Intensity %u\%.", label, value);
-            #if DEBUG_USE_WIFI
-            wifiDebugPrint(buf);        
-            #else
             debugPrintln(buf);
-            #endif
         }
     }
 }
@@ -161,6 +277,7 @@ void DcsbiosProtocolReplay() {
     const uint8_t* end = dcsbiosReplayData + dcsbiosReplayLength;
 
     while (ptr < end) {
+
         float frameDelay;
         memcpy_P(&frameDelay, ptr, sizeof(float));
         ptr += sizeof(float);
@@ -169,26 +286,16 @@ void DcsbiosProtocolReplay() {
         ptr += 2;
 
         for (uint16_t i = 0; i < len; i++) {
-
-            #if DEBUG_PERFORMANCE
-            beginProfiling("Replay-Simulation");
-            #endif
-
             uint8_t b = pgm_read_byte(ptr + i);
             DcsBios::parser.processChar(b);
             DcsBios::loop();               // ✅ Loop after each byte
             delayMicroseconds(1);          // simulate serial pace
-
-            #if DEBUG_PERFORMANCE
-            endProfiling("Replay-Simulation");
-            perfMonitorUpdate();
-            #endif
-
         }
         ptr += len;
 
         DcsBios::loop();                   // catch final updates
         delay((unsigned long)(frameDelay * 1000));
+
     }
     debugPrintln("[REPLAY PROTOCOL] ✅ Complete.\n");
 }
@@ -201,7 +308,7 @@ void DCSBIOS_init() {
     #endif
 
     DcsBios::setup();
-    debugPrintln("\nDCSBIOS Library Initialization Complete.\n");
+    debugPrintln("\nDCSBIOS Library Initialization Complete.");
 
     #if IS_REPLAY
     // Begin simulated loop
@@ -211,18 +318,32 @@ void DCSBIOS_init() {
 
 void DCSBIOS_loop() {
   #if DEBUG_PERFORMANCE
-    beginProfiling("DcsBios::loop");
+    beginProfiling("DCS-BIOS Loop");
   #endif
 
   DcsBios::loop();
 
   #if DEBUG_PERFORMANCE
-    endProfiling("DcsBios::loop");
+    endProfiling("DCS-BIOS Loop");
+  #endif
+
+  #if DEBUG_PERFORMANCE
     perfMonitorUpdate();
   #endif
 }
 
 void sendDCSBIOSCommand(const char* label, uint16_t value) {
-    // Any conditional logic before sending a command to DCS should go here.. (e.g cover checks)
-    DcsBios::sendDcsBiosMessage(label, String(value).c_str());
+    // Any conditional logic before sending a command to DCS should go here (e.g. cover checks)
+
+    char valueStr[10];
+    snprintf(valueStr, sizeof(valueStr), "%u", value); // safely format value into a string
+
+    DcsBios::tryToSendDcsBiosMessage(label, valueStr);
+    // DcsBios::sendDcsBiosMessage(label, valueStr);
+
+    #if VERBOSE_PERFORMANCE_ONLY
+        wifiDebugPrintf("🛩️ DCS Command Sent: %s %s\n", label, valueStr);
+    #else
+        debugPrintf("🛩️ DCS Command Sent: %s %s\n", label, valueStr);
+    #endif
 }

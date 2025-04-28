@@ -1,4 +1,4 @@
-// Auto-generated DCSBIOS Bridge Data (JSON‑only)
+// Auto-generated DCSBIOS Bridge Data (JSON‑only) - DO NOT EDIT
 #pragma once
 
 #include <stdint.h>
@@ -80,42 +80,6 @@ static const std::unordered_map<uint16_t,std::vector<const DcsOutputEntry*>> add
     {0x742A,{&DcsOutputTable[35]}},
 };
 
-struct DcsInputEntry { const char* label; uint16_t max_value; const char* description; };
-static const DcsInputEntry DcsInputTable[] = {
-    {"APU_FIRE_BTN",1,"APU Fire Warning/Extinguisher Light" },
-    {"AUX_REL_SW",1,"Auxiliary Release Switch" },
-    {"CMSD_DISPENSE_SW",2,"DISPENSER Switch" },
-    {"CMSD_JET_SEL_BTN",1,"ECM JETT JETT SEL Button - Push to jettison" },
-    {"ECM_MODE_SW",4,"ECM Mode Switch" },
-    {"FIRE_EXT_BTN",1,"Fire Extinguisher Pushbutton" },
-    {"IFEI_DWN_BTN",1,"Down Arrow Button" },
-    {"IFEI_ET_BTN",1,"ET Button" },
-    {"IFEI_MODE_BTN",1,"Mode Button" },
-    {"IFEI_QTY_BTN",1,"QTY Button" },
-    {"IFEI_UP_BTN",1,"Up Arrow Button" },
-    {"IFEI_ZONE_BTN",1,"ZONE Button" },
-    {"CHART_DIMMER",65535,"CHART Light Dimmer" },
-    {"COCKKPIT_LIGHT_MODE_SW",2,"MODE Switch" },
-    {"CONSOLES_DIMMER",65535,"CONSOLES Lights Dimmer" },
-    {"FLOOD_DIMMER",65535,"FLOOD Light Dimmer" },
-    {"INST_PNL_DIMMER",65535,"INST PNL Dimmer" },
-    {"LIGHTS_TEST_SW",1,"Lights Test Switch" },
-    {"WARN_CAUTION_DIMMER",65535,"WARN/CAUTION Light Dimmer" },
-    {"LEFT_FIRE_BTN",1,"Left Engine/AMAD Fire Warning/Extinguisher Light" },
-    {"LEFT_FIRE_BTN_COVER",1,"Left Engine/AMAD Fire Warning Cover" },
-    {"HMD_OFF_BRT",65535,"HMD OFF/BRT Knob" },
-    {"IR_COOL_SW",2,"IR Cooling Switch" },
-    {"SPIN_RECOVERY_COVER",1,"Spin Recovery Switch Cover" },
-    {"SPIN_RECOVERY_SW",1,"Spin Recovery Switch" },
-    {"MASTER_ARM_SW",1,"Master Arm Switch" },
-    {"MASTER_MODE_AA",1,"Master Mode Button" },
-    {"MASTER_MODE_AG",1,"Master Mode Button" },
-    {"MASTER_CAUTION_RESET_SW",1,"MASTER CAUTION Reset Button - Press to reset" },
-    {"RIGHT_FIRE_BTN",1,"Right Engine/AMAD Fire Warning/Extinguisher Light" },
-    {"RIGHT_FIRE_BTN_COVER",1,"Right Engine/AMAD Fire Warning Cover" },
-};
-static const size_t DcsInputTableSize = sizeof(DcsInputTable)/sizeof(DcsInputTable[0]);
-
 struct SelectorEntry { const char* label; const char* dcsCommand; uint16_t value; const char* controlType; uint16_t group; };
 static const SelectorEntry SelectorMap[] = {
     { "APU_FIRE_BTN","APU_FIRE_BTN",1,"momentary",0 },
@@ -131,12 +95,6 @@ static const SelectorEntry SelectorMap[] = {
     { "ECM_MODE_SW_STBY","ECM_MODE_SW",1,"selector",3 },
     { "ECM_MODE_SW_OFF","ECM_MODE_SW",0,"selector",3 },
     { "FIRE_EXT_BTN","FIRE_EXT_BTN",1,"momentary",0 },
-    { "IFEI_DWN_BTN","IFEI_DWN_BTN",1,"momentary",0 },
-    { "IFEI_ET_BTN","IFEI_ET_BTN",1,"momentary",0 },
-    { "IFEI_MODE_BTN","IFEI_MODE_BTN",1,"momentary",0 },
-    { "IFEI_QTY_BTN","IFEI_QTY_BTN",1,"momentary",0 },
-    { "IFEI_UP_BTN","IFEI_UP_BTN",1,"momentary",0 },
-    { "IFEI_ZONE_BTN","IFEI_ZONE_BTN",1,"momentary",0 },
     { "COCKKPIT_LIGHT_MODE_SW_NVG","COCKKPIT_LIGHT_MODE_SW",2,"selector",4 },
     { "COCKKPIT_LIGHT_MODE_SW_NITE","COCKKPIT_LIGHT_MODE_SW",1,"selector",4 },
     { "COCKKPIT_LIGHT_MODE_SW_DAY","COCKKPIT_LIGHT_MODE_SW",0,"selector",4 },

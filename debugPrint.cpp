@@ -2,13 +2,17 @@
 #include "src/Globals.h"   
 
 #if DEBUG_ENABLED
-bool DEBUG = true;
-bool debugToSerial = true;
-bool debugToUDP    = true;
+bool DEBUG           = true;
 #else
-bool DEBUG = false;
-bool debugToSerial = false;
-bool debugToUDP    = false;
+bool DEBUG           = false;
+#endif
+
+#if VERBOSE_MODE
+bool debugToSerial   = true;
+bool debugToUDP      = true;
+#else
+bool debugToSerial   = false;
+bool debugToUDP      = false;
 #endif
 
 void debugSetOutput(bool toSerial, bool toUDP) {
@@ -33,6 +37,15 @@ void debugPrintf(const char* format, ...) {
     vsnprintf(buf, sizeof(buf), format, args);
     va_end(args);
     debugPrint(buf);
+}
+
+void serialDebugPrintf(const char* format, ...) {
+    char buf[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buf, sizeof(buf), format, args);
+    va_end(args);
+    serialDebugPrint(buf);
 }
 
 void sendDebug(const char* msg) {

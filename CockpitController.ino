@@ -1,10 +1,6 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
-// -- Serial Configuration --
-#define BAUD_RATE 250000                // Not used, just legacy 
-#define SERIAL_STARTUP_DELAY 3000       // Delay (ms) allowing Serial Monitor to connect
-
 // -- Project Headers --
 #include "src/Globals.h"
 #include "src/HIDManager.h"
@@ -47,17 +43,25 @@ bool isModeSelectorDCS() {
   return digitalRead(MODE_SWITCH_PIN) == HIGH;
 }
 
+void measureI2Cspeed(uint8_t deviceAddr) {
+  uint32_t t0 = micros();
+  Wire.requestFrom(deviceAddr, 2);
+  while (Wire.available()) {
+    Wire.read();
+  }
+  uint32_t t1 = micros();
+  debugPrintf("I²C at 0x%02X Read Time: %u us\n", deviceAddr, t1 - t0);
+}
+
 // Arduino Setup Routine
 void setup() {
-  Serial.begin(BAUD_RATE); 
-  unsigned long start = millis();
-  while (!Serial && (millis() - start < SERIAL_STARTUP_DELAY)) delay(1);
-  
-  #if VERBOSE_MODE
-  debugSetOutput(true, true); // First parameter is output to Serial, second one is output to UDP (if DEBUG_USE_WIFI enabled)
-  #else
-  debugSetOutput(debugToSerial, debugToUDP);
-  #endif
+  DCSBIOS_init();
+
+  // Just use to override. Not really needed.
+  // debugSetOutput(true, true); // First parameter is output to Serial, second one is output to UDP (if DEBUG_USE_WIFI enabled)
+
+  // Starts our HID device
+  HIDManager_begin();
 
   #if DEBUG_USE_WIFI
   wifi_setup();
@@ -74,15 +78,14 @@ void setup() {
   // I2C Initialization
   Wire.begin(SDA_PIN, SCL_PIN);
 
-  // Starts our HID device
-  HIDManager_begin();
+  #if PCA_FAST_MODE
+  Wire.setClock(400000);
+  #endif
 
 // Detect Panels (They are off by default)
   scanConnectedPanels();
 
   debugPrintln("\n=== Cockpit Brain Controller Initialization ===");
-  debugPrint("Selected mode: ");
-  debugPrintln(isModeSelectorDCS() ? "DCS-BIOS" : "HID");
 
   // Show PCA Panels we discovered
   printDiscoveredPanels();
@@ -115,14 +118,8 @@ void setup() {
     Wire.endTransmission();
   }
 
-  debugPrintln("Initializing Panels....");
-  if (hasLA) LeftAnnunciator_init();
-  if (hasRA) RightAnnunciator_init();
-
-  debugPrint("Initializing PCA Panels....");
-  if (hasIR) IRCool_init();
-  if (hasECM) ECM_init();
-  if (hasMasterARM) MasterARM_init();
+ // Just for reference, measures PCA9555 bus speed
+  measureI2Cspeed(0x26);
 
   // Active Panels for LED Initialization
   const char* activePanels[7];
@@ -138,6 +135,13 @@ void setup() {
   ADD_PANEL_IF_ENABLED(hasECM, "ECM");
   ADD_PANEL_IF_ENABLED(hasMasterARM, "ARM");
 
+  debugPrintln("Initializing Panels....");
+  if (hasRA) RightAnnunciator_init();
+  if (hasLA) LeftAnnunciator_init();
+  if (hasIR) IRCool_init();
+  if (hasECM) ECM_init();
+  if (hasMasterARM) MasterARM_init();
+
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
   
@@ -147,22 +151,30 @@ void setup() {
     debugPrintln("Exiting LED selection menu. Continuing execution...");
   #endif 
 
-  DCSBIOS_init();
-
   // If we are not debugging we turn it off.
-  if(!DEBUG) enablePCA9555Logging(0);
-
-  // Ready to go!
-  debugPrintln("Device is now ready!\n");
+  if(DEBUG) {
+    enablePCA9555Logging(1);
+    debugPrintln("Device is now ready! (DEBUG ENABLED)");
+  }
+  else {
+    // Ready to go!
+    enablePCA9555Logging(0);
+    debugPrintln("Device is now ready!");
+  }
+  debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
 }
 
 // Arduino Loop Routine
 void loop() {
+  
+  DCSBIOS_loop();  
+
   #if DEBUG_PERFORMANCE
     beginProfiling("Main Loop");
   #endif
 
-  HIDManager_keepAlive();
+  // Dont send HID reports if using DCS-BIOS mode switch
+  if (!isModeSelectorDCS()) HIDManager_keepAlive();
 
   // Shadow buffer implementation for Caution Advisory to guarantee row-coherent updates 
   // Solves problem with matrix scanning and partial row writes
@@ -189,9 +201,6 @@ void loop() {
         readPCA9555(0x5B, p0, p1);
     }
   }
-
-  // DCS-BIOS Bridge loop
-  DCSBIOS_loop();
 
   #if DEBUG_PERFORMANCE
   endProfiling("Main Loop");

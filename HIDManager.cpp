@@ -9,7 +9,6 @@
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
-#include "src/Mappings.h"
 
 // Group bitmask store
 #define MAX_GROUPS 32
@@ -81,20 +80,24 @@ void HIDManager_begin() {
   // Load input bitmasks
   buildHIDGroupBitmasks();
 
-  // Configure custom USB descriptors **before** starting HID
-  USB.productName("FA-18C Cockpit Controller");   // Product string
-  USB.manufacturerName("Bojote");                 // Manufacturer string
-  USB.serialNumber("FA18C-AB-02");                // Serial number string
-  USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
-  USB.PID(0x1102);                                // Set Product ID
+  // We only initialize this when in HID mode, so we'll be effectively CDC only
+  if(!isModeSelectorDCS()) {
+    // Configure custom USB descriptors **before** starting HID
+    USB.productName("FA-18C Cockpit Controller");   // Product string
+    USB.manufacturerName("Bojote");                 // Manufacturer string
+    USB.serialNumber("FA18C-AB-02");                // Serial number string
+    USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
+    USB.PID(0x1102);                                // Set Product ID
 
-// USB Stack init (seems to start on its own)
-  USB.begin();
+    // USB Stack init (seems to start on its own)
+    USB.begin();
 
-  // HID Device init (we dont need this in DCS Only mode)
-  HID.begin(); if (!isModeSelectorDCS());
+    // HID Device init (we dont need this in DCS Only mode)
+    HID.begin(); // We always initialize it, but limit HID report sending in main loop
+  }
 }
 
+/*
 // Axis Movement
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
   const int DEADZONE_LOW = 50, DEADZONE_HIGH = 4080;
@@ -132,6 +135,52 @@ void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
     }
   }
 }
+*/
+
+// Ultra-Optimized Axis Movement
+void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
+    constexpr int DEADZONE_LOW = 250;
+    constexpr int DEADZONE_HIGH = 4000;
+    constexpr int THRESHOLD = 512;
+    constexpr int SMOOTHING_FACTOR = 8; // Higher = smoother but slower to react
+
+    static int lastFiltered[40] = {0};
+    static int lastRaw[40] = {-1};
+    static int lastOutput[40] = {-1};
+
+    int raw = analogRead(pin);
+
+    // Simple digital low-pass filter (exponential moving average)
+    lastFiltered[pin] = (lastFiltered[pin] * (SMOOTHING_FACTOR - 1) + raw) / SMOOTHING_FACTOR;
+
+    int filtered = lastFiltered[pin];
+
+    // Deadzone clamping
+    if (filtered < DEADZONE_LOW) filtered = 0;
+    if (filtered > DEADZONE_HIGH) filtered = 4095;
+
+    // Scale to DCS full range
+    int output = map(filtered, 0, 4095, 0, 65535);
+
+    if (isModeSelectorDCS()) {
+        // DCS Mode
+        if (abs(output - lastOutput[pin]) > THRESHOLD) {
+            lastOutput[pin] = output;
+            sendDCSBIOSCommand(dcsIdentifier, output);
+        }
+    } else {
+        // HID Mode
+        if ((filtered == 0 && lastRaw[pin] != 0) ||
+            (filtered == 4095 && lastRaw[pin] != 4095) ||
+            (filtered != 0 && filtered != 4095 && abs(filtered - lastRaw[pin]) > THRESHOLD)) {
+            lastRaw[pin] = filtered;
+            if (!HID.ready()) return;
+            report.rx = filtered;
+            gp.sendReport(report.raw, sizeof(report));
+            debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);
+        }
+    }
+}
 
 // Commit Deferred Report
 void HIDManager_commitDeferredReport() {
@@ -139,19 +188,24 @@ void HIDManager_commitDeferredReport() {
   gp.sendReport(report.raw, sizeof(report));
 }
 
-// HID Poll Rate / Send Reports
-// Sends a HID report at the configured polling rate (in Hz)
-// Example: 250Hz → sends every 4ms
-void HIDManager_keepAlive() {
-  static const uint16_t pollingRateHz = 250;    // Set your desired polling rate here
-  static const unsigned long pollingIntervalMs = 1000 / pollingRateHz; // Calculated interval
-  static unsigned long lastRefresh = 0;
-  if (!HID.ready()) return;
-  if (millis() - lastRefresh >= pollingIntervalMs) {
-    gp.sendReport(report.raw, sizeof(report));
-    lastRefresh = millis();
-  }
+// For polling rate on panels that need it
+bool shouldPollMs(unsigned long &lastPoll) {
+  const unsigned long pollingIntervalMs = 1000 / POLLING_RATE_HZ;
+  unsigned long now = millis();
+  if (now - lastPoll < pollingIntervalMs) return false;
+  lastPoll = now;
+  return true;
 }
+
+void HIDManager_keepAlive() {
+  // Limit based on our poll rate
+  static unsigned long lastHIDPoll = 0;
+  if (!shouldPollMs(lastHIDPoll)) return;
+  
+  if (!HID.ready()) return;
+  gp.sendReport(report.raw, sizeof(report));
+}
+
 
 // Set Named Button State
 void HIDManager_setNamedButton(const String& name, bool deferSend, bool pressed) {

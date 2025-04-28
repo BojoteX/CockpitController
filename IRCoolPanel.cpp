@@ -48,19 +48,19 @@ void IRCool_init() {
 
     // SPIN switch (2-position)
     if (!bitRead(port1, 2)) {
-      HIDManager_setNamedButton("SPIN_RCVY",true);
+      HIDManager_setNamedButton("SPIN_RECOVERY_SW_RCVY",true);
     }
     else {
-      HIDManager_setNamedButton("SPIN_NORM",true);
+      HIDManager_setNamedButton("SPIN_RECOVERY_SW_NORM",true);
     }
 
     // IR COOL 3-position logic (PORT1 bits 0 & 1)
     if (!bitRead(port1, IR_COOL_OFF))
-      HIDManager_setNamedButton("IR_COOL_OFF", true);
+      HIDManager_setNamedButton("IR_COOL_SW_OFF", true);
     else if (!bitRead(port1, IR_COOL_ORIDE))
-      HIDManager_setNamedButton("IR_COOL_ORIDE", true);
+      HIDManager_setNamedButton("IR_COOL_SW_ORIDE", true);
     else
-      HIDManager_setNamedButton("IR_COOL_NORM", true);
+      HIDManager_setNamedButton("IR_COOL_SW_NORM", true);
 
     HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
 
@@ -75,16 +75,21 @@ void IRCool_init() {
 
 // Runtime loop for polling panel changes
 void IRCool_loop() {
+
+  // Adjust polling rate
+  static unsigned long lastIRCoolPoll = 0;
+  if (!shouldPollMs(lastIRCoolPoll)) return;
+
   byte port0, port1;
   if (!readPCA9555(IRCOOL_PCA_ADDR, port0, port1)) return;
 
   // SPIN switch
   if (bitRead(prevIRCPort1, 2) != bitRead(port1, 2)) {
     if (!bitRead(port1, 2)) {
-      HIDManager_setNamedButton("SPIN_RCVY");
+      HIDManager_setNamedButton("SPIN_RECOVERY_SW_RCVY");
     }
     else {
-      HIDManager_setNamedButton("SPIN_NORM");
+      HIDManager_setNamedButton("SPIN_RECOVERY_SW_NORM");
     }
   }
 
@@ -93,11 +98,11 @@ void IRCool_loop() {
       (bitRead(prevIRCPort1, IR_COOL_ORIDE) != bitRead(port1, IR_COOL_ORIDE))) {
 
     if (!bitRead(port1, IR_COOL_OFF))
-      HIDManager_setNamedButton("IR_COOL_OFF");
+      HIDManager_setNamedButton("IR_COOL_SW_OFF");
     else if (!bitRead(port1, IR_COOL_ORIDE))
-      HIDManager_setNamedButton("IR_COOL_ORIDE");
+      HIDManager_setNamedButton("IR_COOL_SW_ORIDE");
     else
-      HIDManager_setNamedButton("IR_COOL_NORM");
+      HIDManager_setNamedButton("IR_COOL_SW_NORM");
   }
 
   // update the HMD knob

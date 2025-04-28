@@ -1,10 +1,13 @@
-#include "src/Globals.h"                  
+#include "src/Globals.h"     
 
 #if DEBUG_PERFORMANCE
+#include "Arduino.h"
+#include <string>
 #include "src/PerfMonitor.h"
-#include <esp_system.h>                   // esp_reset_reason()
-#include <esp_timer.h>                    // esp_timer_get_time()
-#include <driver/temperature_sensor.h>    // temperature_sensor_*
+#include <esp_system.h>                     // esp_reset_reason()
+#include <esp_timer.h>                      // esp_timer_get_time()
+#include <driver/temperature_sensor.h>      // temperature_sensor_*
+#include "esp_pm.h"
 
 // Convert seconds to milliseconds at compile time
 #define PERFORMANCE_SNAPSHOT_INTERVAL_MS (PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS * 1000UL)
@@ -26,6 +29,45 @@ static temperature_sensor_handle_t _tempHandle = nullptr;
 static bool _alertShown = false;
 
 // === Helpers ===
+
+inline void perfDebugPrint(const char* msg) {
+#if VERBOSE_PERFORMANCE_ONLY
+    wifiDebugPrint(msg);
+#else
+    debugPrint(msg);
+#endif
+}
+
+inline void perfDebugPrintln(const char* msg) {
+#if VERBOSE_PERFORMANCE_ONLY
+    wifiDebugPrintln(msg);
+#else
+    debugPrintln(msg);
+#endif
+}
+
+inline void perfDebugPrintf(const char* format, ...) {
+    char buf[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buf, sizeof(buf), format, args);
+    va_end(args);
+#if VERBOSE_PERFORMANCE_ONLY
+    wifiDebugPrint(buf);
+#else
+    debugPrint(buf);
+#endif
+}
+
+void setCpuFrequencyMhz(int freq) {
+    esp_pm_config_esp32s2_t pm_config = {
+        .max_freq_mhz = (uint32_t)freq,
+        .min_freq_mhz = (uint32_t)freq,
+        .light_sleep_enable = false
+    };
+
+    esp_pm_configure(&pm_config);
+}
 
 // True if this reset should trigger an alert
 static bool _isBadReset(esp_reset_reason_t r) {
@@ -57,6 +99,10 @@ static const char* _resetReasonToString(esp_reset_reason_t r) {
 // === API ===
 
 void initPerfMonitor() {
+
+    // Set our CPU Freq. for debugging (we dont use this for production)
+    // setCpuFrequencyMhz(80);  // 80, 160 or 240
+
     // 1) Show alert once on bad resets
     if (!_alertShown) {
         _alertShown = true;
@@ -114,22 +160,36 @@ void endProfiling(const char* label) {
 }
 
 void perfMonitorUpdate() {
-    // 1) Accumulate busy time
-    unsigned long nowUs  = micros();
-    unsigned long loopUs = nowUs - _lastLoopUs;
-    _lastLoopUs          = nowUs;
-    _busyUsAccum        += loopUs;
-
-    // 2) Only once per PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS
     unsigned long nowMs = millis();
     if (nowMs - _lastReportMs < PERFORMANCE_SNAPSHOT_INTERVAL_MS) return;
     unsigned long windowMs = nowMs - _lastReportMs;
 
-    // 3) Compute metrics
-    float cpuLoadPct = (_busyUsAccum / (float)(windowMs*1000UL))*100.0f;
+    perfDebugPrintln("\n\n────────────────────────────────────── [ PERFORMANCE SNAPSHOT ] ──────────────────────────────────────");
+    perfDebugPrintln("● [Profiling Averages]");
+
+    float mainLoopAvgMs = 0.0f;
+
+    for (auto it = _accumulators.begin(); it != _accumulators.end(); ) {
+        const auto& lbl = it->first;
+        const auto& a = it->second;
+        float avgMs = a.cnt ? (a.sumUs / (float)a.cnt) / 1000.0f : 0.0f;
+
+        if (lbl == "Main Loop") {
+            mainLoopAvgMs = avgMs;
+        }
+
+        perfDebugPrintf("  └─ %-16s: avg %6.2f ms\n", lbl.c_str(), avgMs);
+        it = _accumulators.erase(it);
+    }
+
+    // Calculate CPU load
+    constexpr float frameMs = (1000.0f / POLLING_RATE_HZ); // Frame time based on polling rate
+    float cpuLoadPct = (mainLoopAvgMs / frameMs) * 100.0f;
+
+    // System Info
     size_t freeHeap  = ESP.getFreeHeap();
     size_t maxAlloc  = ESP.getMaxAllocHeap();
-    float fragPct    = freeHeap ? ((freeHeap-maxAlloc)/(float)freeHeap)*100.0f : 0.0f;
+    float fragPct    = freeHeap ? ((freeHeap - maxAlloc) / (float)freeHeap) * 100.0f : 0.0f;
     unsigned int freeKB  = freeHeap / 1024;
     unsigned int allocKB = maxAlloc / 1024;
 
@@ -140,48 +200,26 @@ void perfMonitorUpdate() {
     const char* rr = _resetReasonToString(reason);
 
     uint64_t uptimeSec = esp_timer_get_time() / 1000000ULL;
-    uint32_t mins = uptimeSec/60, secs = uptimeSec%60;
-
+    uint32_t mins = uptimeSec / 60, secs = uptimeSec % 60;
     int cpuMHz = ESP.getCpuFreqMHz();
 
-    // 4) Print the snapshot
-    debugPrintln("\n\n---------------------------------------- [PERFORMANCE SNAPSHOT] -----------------------------------");
+    perfDebugPrintln("\n● [System Status]");
     if (mins) {
-        debugPrintf(
-          "Uptime: %lum%02lus | CPU: %.1f%% @%dMHz | Heap free: %uKB - Largest block: %uKB - Frag: %.1f%%\n",
-          mins, secs, cpuLoadPct, cpuMHz,
-          freeKB, allocKB, fragPct
-        );
-        debugPrintf(
-            "Temp: %.1f°C | Reset: %s\n",
-            tempC, rr
-        );
+        perfDebugPrintf("  └─ Uptime         : %lum%02lus\n", mins, secs);
     } else {
-        debugPrintf(
-          "Uptime: %4lus | CPU: %.1f%% @%dMHz | Heap free: %uKB - Largest block: %uKB - Frag: %.1f%%\n",
-          secs, cpuLoadPct, cpuMHz,
-          freeKB, allocKB, fragPct
-        );
-        debugPrintf(
-          "Temp: %.1f°C | Reset: %s\n",
-          tempC, rr
-        );
+        perfDebugPrintf("  └─ Uptime         : %4lus\n", secs);
     }
+    perfDebugPrintf("  └─ CPU Load       : %.1f%%\n", cpuLoadPct);
+    perfDebugPrintf("  └─ CPU Frequency  : %d MHz\n", cpuMHz);
+    perfDebugPrintf("  └─ Temperature    : %.1f°C\n", tempC);
+    perfDebugPrintf("  └─ Heap Free      : %u KB\n", freeKB);
+    perfDebugPrintf("  └─ Largest Block  : %u KB\n", allocKB);
+    perfDebugPrintf("  └─ Heap Fragment. : %.1f%%\n", fragPct);
+    perfDebugPrintf("  └─ Last Reset     : %s\n", rr);
 
-    for (auto &kv : _accumulators) {
-        const auto &lbl = kv.first;
-        const auto &a   = kv.second;
-        float avgMs = a.cnt ? (a.sumUs/(float)a.cnt)/1000.0f : 0.0f;
-        debugPrintf("[PROF] %-12s: avg %6.2f ms\n",
-                    lbl.c_str(), avgMs);
-    }
-    _accumulators.clear();
-
-    debugPrintln("---------------------------------------------------------------------------------------------------\n");
-
-    // 5) Reset
-    _busyUsAccum  = 0;
     _lastReportMs = nowMs;
+
+    perfDebugPrintln("──────────────────────────────────────────────────────────────────────────────────────────────────────\n");
 }
 
 #endif // DEBUG_PERFORMANCE
