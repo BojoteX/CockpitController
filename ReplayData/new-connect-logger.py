@@ -1,6 +1,8 @@
 import socket
 import time
 import json
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # === CONFIGURATION ===
 IP_ADDRESS = "0.0.0.0"

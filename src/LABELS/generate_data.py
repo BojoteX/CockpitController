@@ -3,12 +3,13 @@ import os, re
 import sys
 import json
 from collections import defaultdict
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # -------- CONFIGURATION --------
 JSON_FILE     	= "FA-18C_hornet.json"
 OUTPUT_HEADER 	= "DCSBIOSBridgeData.h"
-INPUT_REFERENCE = "../InputMapping.h"
-LED_REFERENCE 	= "../LEDMapping.h"
+INPUT_REFERENCE = "InputMapping.h"
+LED_REFERENCE 	= "LEDMapping.h"
 PROCESS_ALL   	= False  # apply target_objects filtering to ALL three tables
 KNOWN_DEVICES 	= {
     "GPIO",
@@ -22,6 +23,7 @@ KNOWN_DEVICES 	= {
 # Panels to include when PROCESS_ALL is False. This is NEVER to be altered in any way
 target_objects = {
     'Fire Systems',
+    'Cockpit Altimeter',
     'LH Advisory Panel',
     'Left Engine Fire Warning Extinguisher Light',
     'Lock Shoot Lights',

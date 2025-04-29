@@ -53,20 +53,25 @@ void measureI2Cspeed(uint8_t deviceAddr) {
   debugPrintf("I²C at 0x%02X Read Time: %u us\n", deviceAddr, t1 - t0);
 }
 
+void initializePanels() {
+  if (hasRA) RightAnnunciator_init();
+  if (hasLA) LeftAnnunciator_init();
+  if (hasIR) IRCool_init();
+  if (hasECM) ECM_init();
+  if (hasMasterARM) MasterARM_init();  
+}
+
 // Arduino Setup Routine
 void setup() {
-
+  // Starts our HID device
+  HIDManager_begin();
+  
   // Activates during DEBUG mode
   enablePCA9555Logging(0);
 
-  // Init DCSBIOS (Includes serial)
-  DCSBIOS_init();
-
   // Just use to override. Not really needed.
   // debugSetOutput(true, true); // First parameter is output to Serial, second one is output to UDP (if DEBUG_USE_WIFI enabled)
-
-  // Starts our HID device
-  HIDManager_begin();
+  debugSetOutput(debugToSerial, debugToUDP); // First parameter is output to Serial, second one is output to UDP (if DEBUG_USE_WIFI enabled)
 
   #if DEBUG_USE_WIFI
   wifi_setup();
@@ -137,12 +142,9 @@ void setup() {
   ADD_PANEL_IF_ENABLED(hasECM, "ECM");
   ADD_PANEL_IF_ENABLED(hasMasterARM, "ARM");
 
-  debugPrintln("Initializing Panels....");
-  if (hasRA) RightAnnunciator_init();
-  if (hasLA) LeftAnnunciator_init();
-  if (hasIR) IRCool_init();
-  if (hasECM) ECM_init();
-  if (hasMasterARM) MasterARM_init();
+  // We changed this logic so it only happens after MISSION START
+  debugPrintln("Initializing Panel states....");
+  initializePanels();
 
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
@@ -152,6 +154,11 @@ void setup() {
     handleLEDSelection();
     debugPrintln("Exiting LED selection menu. Continuing execution...");
   #endif 
+
+  #if IS_REPLAY
+  // Begin simulated loop
+  DcsbiosProtocolReplay();
+  #endif
 
   // If we are not debugging we turn it off.
   if(DEBUG) {
@@ -163,20 +170,16 @@ void setup() {
     debugPrintln("Device is now ready!");
   }
   debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
-
 }
 
 // Arduino Loop Routine
 void loop() {
   
-  DCSBIOS_loop();  
+  HIDManager_loop(); 
 
   #if DEBUG_PERFORMANCE
     beginProfiling("Main Loop");
   #endif
-
-  // Dont send HID reports if using DCS-BIOS mode switch
-  if (!isModeSelectorDCS()) HIDManager_keepAlive();
 
   // Shadow buffer implementation for Caution Advisory to guarantee row-coherent updates 
   // Solves problem with matrix scanning and partial row writes
@@ -186,7 +189,6 @@ void loop() {
   if (hasRA) RightAnnunciator_loop();
 
   if (hasIR) IRCool_loop();  
-
   if (hasECM) ECM_loop();
   if (hasMasterARM) MasterARM_loop();
 

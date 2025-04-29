@@ -5,7 +5,7 @@
 #include <string.h>
 #include "src/Globals.h"
 #include "src/LEDControl.h"
-#include "src/LEDMapping.h"
+#include "src/LABELS/LEDMapping.h"
 #if DEBUG_PERFORMANCE
 #include "src/PerfMonitor.h"
 #endif
@@ -86,7 +86,7 @@ void setLED(const char* label, bool state, uint8_t intensity) {
 
     const LEDMapping* led = findLED(label);
     if (!led) {
-        debugPrintf("⚠️ LED label '%s' not found\n", label);
+        if(DEBUG) debugPrintf("⚠️ LED label '%s' not found\n", label);
         #if DEBUG_PERFORMANCE
         endProfiling("setLED");
         #endif
@@ -138,7 +138,7 @@ void setLED(const char* label, bool state, uint8_t intensity) {
 
         case DEVICE_NONE:
         default:
-            debugPrintf("⚠️ LED '%s' has DEVICE_NONE\n", label);
+            if(DEBUG) debugPrintf("⚠️ LED '%s' has DEVICE_NONE\n", label);
             break;
     }
     #if DEBUG_PERFORMANCE

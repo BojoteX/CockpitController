@@ -3,6 +3,7 @@ import os, re
 import sys
 import json
 from collections import defaultdict
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # -------- CONFIGURATION --------
 JSON_FILE     	= "FA-18C_hornet.json"
@@ -22,6 +23,7 @@ KNOWN_DEVICES 	= {
 # Panels to include when PROCESS_ALL is False. This is NEVER to be altered in any way
 target_objects = {
     'Fire Systems',
+    'Cockpit Altimeter',
     'LH Advisory Panel',
     'Left Engine Fire Warning Extinguisher Light',
     'Lock Shoot Lights',
@@ -33,8 +35,7 @@ target_objects = {
     'Caution Light Panel',
     'Dispenser/EMC Panel',
     'Interior Lights Panel',
-    'APU Fire Warning Extinguisher Light',
-    'Integrated Fuel/Engine Indicator (IFEI)'
+    'APU Fire Warning Extinguisher Light'
 }
 
 # -------- LOAD JSON -------- You need to load the Hornet Json file in order to generate the file.
@@ -143,7 +144,7 @@ for panel, controls in data.items():
 # -------- WRITE HEADER FOR OUTPUT AND SELECTORS -------- 
 
 with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
-    f.write("// Auto-generated DCSBIOS Bridge Data (JSON‑only)\n")
+    f.write("// Auto-generated DCSBIOS Bridge Data (JSON‑only) - DO NOT EDIT\n")
     f.write("#pragma once\n\n#include <stdint.h>\n#include <vector>\n#include <unordered_map>\n\n")
 
     # Outputs
@@ -224,6 +225,8 @@ for full, cmd, val, ct, grp in selector_entries:
 
 # 3) write out merged list
 with open(INPUT_REFERENCE, "w", encoding="utf-8") as f2:
+    f2.write("// THIS FILE IS AUTO-GENERATED; ONLY EDIT INDIVIDUAL RECORDS, DO NOT ADD OR DELETE THEM HERE\n")
+    f2.write("#pragma once\n\n")
     f2.write("struct InputMapping {\n")
     f2.write("    const char* label;        // Unique selector label\n")
     f2.write("    const char* source;       // Hardware source identifier\n")
@@ -351,7 +354,7 @@ for label in labels:
         line = (
             f'  {{ {padded_label}, DEVICE_{dev.ljust(8)}, '
             f'{{.{e["info_type"]} = {{{e["info_values"]}}}}}, '
-            f'{e["dimmable"]}, {e["activeLow"]} }} {generate_comment(dev, e["info_type"], e["info_values"])}'
+            f'{e["dimmable"]}, {e["activeLow"]} }}, {generate_comment(dev, e["info_type"], e["info_values"])}'
         )
     else:
         line = (
@@ -373,9 +376,9 @@ for idx, label in enumerate(labels):
         print(f"❌ Hash table full! TABLE_SIZE={TABLE_SIZE} too small", file=sys.stderr)
         sys.exit(1)
 
-# ——— 6) Emit the new LEDControl_Lookup.h ———
+# ——— 6) Emit the new LEDMapping.h ———
 with open(LED_REFERENCE, "w", encoding="utf-8") as out:
-    out.write("// THIS FILE IS AUTO-GENERATED; DO NOT EDIT MANUALLY\n")
+    out.write("// THIS FILE IS AUTO-GENERATED; ONLY EDIT INDIVIDUAL LED/GAUGE RECORDS, DO NOT ADD OR DELETE THEM HERE\n")
     out.write("#pragma once\n\n")
 
     out.write("// Embedded LEDMapping structure and enums\n")
@@ -416,15 +419,16 @@ with open(LED_REFERENCE, "w", encoding="utf-8") as out:
     out.write("constexpr uint16_t ledHash(const char* str) {\n")
     out.write("  uint16_t hash = 5381;\n")
     out.write("  while (*str) { hash = ((hash << 5) + hash) + *str++; }\n")
-    out.write(f"  return hash % {TABLE_SIZE};\n")
+    out.write("  return hash;\n")  # No % TABLE_SIZE here
     out.write("}\n\n")
 
     out.write("// findLED lookup\n")
     out.write("inline const LEDMapping* findLED(const char* label) {\n")
-    out.write("  uint16_t h = ledHash(label);\n")
-    out.write(f"  for (int i = 0; i < {TABLE_SIZE}; ++i) {{\n")
-    out.write(f"    const auto& entry = ledHashTable[(h + i) % {TABLE_SIZE}];\n")
-    out.write("    if (!entry.label) return nullptr;\n")
+    out.write(f"  uint16_t startH = ledHash(label) % {TABLE_SIZE};\n")
+    out.write(f"  for (uint16_t i = 0; i < {TABLE_SIZE}; ++i) {{\n")
+    out.write(f"    uint16_t idx = (startH + i >= {TABLE_SIZE}) ? (startH + i - {TABLE_SIZE}) : (startH + i);\n")
+    out.write("    const auto& entry = ledHashTable[idx];\n")
+    out.write("    if (!entry.label) continue;\n")
     out.write("    if (strcmp(entry.label, label) == 0) return entry.led;\n")
     out.write("  }\n")
     out.write("  return nullptr;\n")

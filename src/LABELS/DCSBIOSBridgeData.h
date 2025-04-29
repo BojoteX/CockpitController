@@ -20,6 +20,7 @@ static const DcsOutputEntry DcsOutputTable[] = {
     {0x74A4,0x1000,12,1,"CLIP_SPARE_CTN1_LT"},
     {0x74A4,0x8000,15,1,"CLIP_SPARE_CTN2_LT"},
     {0x74A8,0x0400,10,1,"CLIP_SPARE_CTN3_LT"},
+    {0x7514,0xFFFF,0,65535,"PRESSURE_ALT"},
     {0x74D4,0x8000,15,1,"CMSD_JET_SEL_L"},
     {0x754A,0xFFFF,0,65535,"CHART_DIMMER"},
     {0x7544,0xFFFF,0,65535,"CONSOLES_DIMMER"},
@@ -64,20 +65,21 @@ static const DcsOutputEntry DcsOutputTable[] = {
 static const size_t DcsOutputTableSize = sizeof(DcsOutputTable)/sizeof(DcsOutputTable[0]);
 
 static const std::unordered_map<uint16_t,std::vector<const DcsOutputEntry*>> addressToEntries = {
-    {0x740C,{&DcsOutputTable[0],&DcsOutputTable[36],&DcsOutputTable[37],&DcsOutputTable[38],&DcsOutputTable[39],&DcsOutputTable[50],&DcsOutputTable[51],&DcsOutputTable[52]}},
+    {0x740C,{&DcsOutputTable[0],&DcsOutputTable[37],&DcsOutputTable[38],&DcsOutputTable[39],&DcsOutputTable[40],&DcsOutputTable[51],&DcsOutputTable[52],&DcsOutputTable[53]}},
     {0x74A4,{&DcsOutputTable[1],&DcsOutputTable[2],&DcsOutputTable[4],&DcsOutputTable[5],&DcsOutputTable[6],&DcsOutputTable[7],&DcsOutputTable[10],&DcsOutputTable[11]}},
     {0x74A0,{&DcsOutputTable[3]}},
     {0x74A8,{&DcsOutputTable[8],&DcsOutputTable[9],&DcsOutputTable[12]}},
-    {0x74D4,{&DcsOutputTable[13]}},
-    {0x754A,{&DcsOutputTable[14]}},
-    {0x7544,{&DcsOutputTable[15]}},
-    {0x7548,{&DcsOutputTable[16]}},
-    {0x7546,{&DcsOutputTable[17]}},
-    {0x754C,{&DcsOutputTable[18]}},
-    {0x740A,{&DcsOutputTable[19],&DcsOutputTable[20],&DcsOutputTable[21],&DcsOutputTable[24],&DcsOutputTable[25],&DcsOutputTable[29],&DcsOutputTable[41],&DcsOutputTable[42],&DcsOutputTable[43],&DcsOutputTable[44],&DcsOutputTable[45],&DcsOutputTable[46],&DcsOutputTable[47],&DcsOutputTable[48],&DcsOutputTable[49]}},
-    {0x7408,{&DcsOutputTable[22],&DcsOutputTable[23],&DcsOutputTable[26],&DcsOutputTable[27],&DcsOutputTable[28],&DcsOutputTable[30],&DcsOutputTable[31],&DcsOutputTable[32],&DcsOutputTable[33],&DcsOutputTable[40]}},
-    {0x7456,{&DcsOutputTable[34]}},
-    {0x742A,{&DcsOutputTable[35]}},
+    {0x7514,{&DcsOutputTable[13]}},
+    {0x74D4,{&DcsOutputTable[14]}},
+    {0x754A,{&DcsOutputTable[15]}},
+    {0x7544,{&DcsOutputTable[16]}},
+    {0x7548,{&DcsOutputTable[17]}},
+    {0x7546,{&DcsOutputTable[18]}},
+    {0x754C,{&DcsOutputTable[19]}},
+    {0x740A,{&DcsOutputTable[20],&DcsOutputTable[21],&DcsOutputTable[22],&DcsOutputTable[25],&DcsOutputTable[26],&DcsOutputTable[30],&DcsOutputTable[42],&DcsOutputTable[43],&DcsOutputTable[44],&DcsOutputTable[45],&DcsOutputTable[46],&DcsOutputTable[47],&DcsOutputTable[48],&DcsOutputTable[49],&DcsOutputTable[50]}},
+    {0x7408,{&DcsOutputTable[23],&DcsOutputTable[24],&DcsOutputTable[27],&DcsOutputTable[28],&DcsOutputTable[29],&DcsOutputTable[31],&DcsOutputTable[32],&DcsOutputTable[33],&DcsOutputTable[34],&DcsOutputTable[41]}},
+    {0x7456,{&DcsOutputTable[35]}},
+    {0x742A,{&DcsOutputTable[36]}},
 };
 
 struct SelectorEntry { const char* label; const char* dcsCommand; uint16_t value; const char* controlType; uint16_t group; };

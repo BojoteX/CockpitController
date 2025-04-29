@@ -8,7 +8,7 @@
 
 typedef uint8_t byte;
 #include <cstdint>
-#include "../../../src/InputMapping.h"
+#include "../../../src/LABELS/InputMapping.h"
 #include "../../../src/LEDControl.h"
 
 // Pines físicos compartidos entre dispositivos

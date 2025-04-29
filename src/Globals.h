@@ -17,6 +17,9 @@ static constexpr bool hasRA         = LOAD_PANEL_RA;
 static constexpr bool hasIR         = LOAD_PANEL_IR;
 static constexpr bool hasLockShoot  = LOAD_PANEL_LOCKSHOOT;
 
+// Init panels from anywhere
+extern void initializePanels();
+
 // PCA panels – determined at runtime
 extern bool hasBrain;
 extern bool hasECM;

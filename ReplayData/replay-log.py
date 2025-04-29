@@ -1,6 +1,8 @@
 import json
 import serial
 import time
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def read_messages(file_path):
     with open(file_path, "r") as f:

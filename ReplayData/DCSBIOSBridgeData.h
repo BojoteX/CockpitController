@@ -1,4 +1,4 @@
-// Auto-generated DCSBIOS Bridge Data (JSON‑only)
+// Auto-generated DCSBIOS Bridge Data (JSON‑only) - DO NOT EDIT
 #pragma once
 
 #include <stdint.h>
@@ -95,12 +95,6 @@ static const SelectorEntry SelectorMap[] = {
     { "ECM_MODE_SW_STBY","ECM_MODE_SW",1,"selector",3 },
     { "ECM_MODE_SW_OFF","ECM_MODE_SW",0,"selector",3 },
     { "FIRE_EXT_BTN","FIRE_EXT_BTN",1,"momentary",0 },
-    { "IFEI_DWN_BTN","IFEI_DWN_BTN",1,"momentary",0 },
-    { "IFEI_ET_BTN","IFEI_ET_BTN",1,"momentary",0 },
-    { "IFEI_MODE_BTN","IFEI_MODE_BTN",1,"momentary",0 },
-    { "IFEI_QTY_BTN","IFEI_QTY_BTN",1,"momentary",0 },
-    { "IFEI_UP_BTN","IFEI_UP_BTN",1,"momentary",0 },
-    { "IFEI_ZONE_BTN","IFEI_ZONE_BTN",1,"momentary",0 },
     { "COCKKPIT_LIGHT_MODE_SW_NVG","COCKKPIT_LIGHT_MODE_SW",2,"selector",4 },
     { "COCKKPIT_LIGHT_MODE_SW_NITE","COCKKPIT_LIGHT_MODE_SW",1,"selector",4 },
     { "COCKKPIT_LIGHT_MODE_SW_DAY","COCKKPIT_LIGHT_MODE_SW",0,"selector",4 },

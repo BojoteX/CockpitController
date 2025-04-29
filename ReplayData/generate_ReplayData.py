@@ -1,5 +1,7 @@
 import json
 import struct
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 INPUT_JSON = "dcsbios_data.json"
 OUTPUT_HEADER = "DcsbiosReplayData.h"

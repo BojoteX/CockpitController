@@ -1,8 +1,11 @@
 // HIDManager.cpp - Corrected Refactor for ESP32 Arduino Core 3.2.0 (No TinyUSB)
 
 // Load TinyUSB
+#include <tusb.h>
 #include <USB.h>
 #include <USBHID.h>
+
+#define Serial USBSerial
 
 // Our regular includes
 #include <Arduino.h>
@@ -77,104 +80,170 @@ GPDevice gp;
 
 // Initialize USB HID
 void HIDManager_begin() {
+
+  // Init DCSBIOS (Includes serial)
+  DCSBIOS_init();
+
+  // This is so that we can cleanly override DTR gating as SOCAT is dumb.
+  // Serial.setDebugOutput(1);
+  // Serial.setRxBufferSize(4096);
+  // Serial.setTxTimeoutMs(500);
+  
   // Load input bitmasks
   buildHIDGroupBitmasks();
 
   // We only initialize this when in HID mode, so we'll be effectively CDC only
   if(!isModeSelectorDCS()) {
+
     // Configure custom USB descriptors **before** starting HID
+    USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
+    USB.PID(0x1602);                                // Set Product ID
     USB.productName("FA-18C Cockpit Controller");   // Product string
     USB.manufacturerName("Bojote");                 // Manufacturer string
     USB.serialNumber("FA18C-AB-02");                // Serial number string
-    USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
-    USB.PID(0x1102);                                // Set Product ID
 
     // USB Stack init (seems to start on its own)
     USB.begin();
 
-    // HID Device init (we dont need this in DCS Only mode)
     HID.begin(); // We always initialize it, but limit HID report sending in main loop
+    while (!HID.ready()) { delay(10); }; //Do not continue until HID is ready
   }
 }
 
+void HIDManager_loop() {
+  DCSBIOS_loop(); 
+  
+  // Dont send HID reports if using DCS-BIOS mode switch
+  if (!isModeSelectorDCS()) HIDManager_keepAlive();
+
+}
+
+// Drop-in replacement for HIDManager_moveAxis()
+// Seeds the filter to raw on first stabilization cycle to avoid spurious 0 output.
 /*
-// Axis Movement
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
-  const int DEADZONE_LOW = 50, DEADZONE_HIGH = 4080;
-  const int THRESHOLD = 512, OVERSAMPLE_COUNT = 32;
+    constexpr int DEADZONE_LOW = 60;
+    constexpr int DEADZONE_HIGH = 4050;
+    constexpr int THRESHOLD = 64;  
+    constexpr int SMOOTHING_FACTOR = 8;
+    constexpr int STABILIZATION_CYCLES = 10;
+    constexpr unsigned long UPDATE_INTERVAL_MS = 1000UL / POLLING_RATE_HZ;
 
-  static int lastRaw[40] = {-1};
-  static int lastOutput[40] = {-1};
 
-  long sum = 0;
-  for (int i = 0; i < OVERSAMPLE_COUNT; i++) {
-    sum += analogRead(pin);
-    delayMicroseconds(250);
-  }
-  int raw = sum / OVERSAMPLE_COUNT;
+    static int lastFiltered[40] = {0};
+    static int lastOutput[40]   = {-1};
+    static unsigned long lastUpdate[40] = {0};
+    static unsigned int stabilizationCount[40] = {0};
+    static bool stabilized[40] = {false};
+    static unsigned long lastStabilizationPoll[40] = {0};
 
-  if (raw < DEADZONE_LOW) raw = 0;
-  if (raw > DEADZONE_HIGH) raw = 4095;
+    unsigned long now = millis();
+    const unsigned long pollingIntervalMs = 1000 / POLLING_RATE_HZ;
 
-  int output = map(raw, 0, 4095, 0, 65535);
-
-  if (isModeSelectorDCS()) {
-    if (abs(output - lastOutput[pin]) > THRESHOLD) {
-      lastOutput[pin] = output;
-      sendDCSBIOSCommand(dcsIdentifier, output);
+    // --- Read & smooth (seed on first cycle) ---
+    int raw = analogRead(pin);
+    if (stabilizationCount[pin] == 0) {
+        lastFiltered[pin] = raw;
+    } else {
+        lastFiltered[pin] = (lastFiltered[pin] * (SMOOTHING_FACTOR - 1) + raw) / SMOOTHING_FACTOR;
     }
-  } else {
-    if ((raw == 0 && lastRaw[pin] != 0) ||
-        (raw == 4095 && lastRaw[pin] != 4095) ||
-        (raw != 0 && raw != 4095 && abs(raw - lastRaw[pin]) > THRESHOLD)) {
-      lastRaw[pin] = raw;
-      if (!HID.ready()) return;
-      report.rx = raw;
-      gp.sendReport(report.raw, sizeof(report));
-      debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, raw);
+
+    int filtered = lastFiltered[pin];
+    // --- Deadzone / fullscale clamp ---
+    if (filtered < DEADZONE_LOW)  filtered = 0;
+    if (filtered > DEADZONE_HIGH) filtered = 4095;
+
+    // --- Stabilization: first few cycles, no sends ---
+    if (!stabilized[pin]) {
+        if (now - lastStabilizationPoll[pin] >= pollingIntervalMs) {
+            lastStabilizationPoll[pin] = now;
+            stabilizationCount[pin]++;
+        }
+        if (stabilizationCount[pin] < STABILIZATION_CYCLES) {
+            return;
+        }
+        // On the cycle we cross STABILIZATION_CYCLES, send exactly once:
+        stabilized[pin] = true;
+        lastOutput[pin] = filtered;
+        lastUpdate[pin] = now;
+        if (isModeSelectorDCS()) {
+            int dcsOutput = map(filtered, 0, 4095, 0, 65535);
+            sendDCSBIOSCommand(dcsIdentifier, dcsOutput);
+        } else {
+            report.rx = filtered;
+            gp.sendReport(report.raw, sizeof(report));
+            debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);
+        }
+        return;
     }
-  }
+
+    // --- After stabilized: enforce minimum interval ---
+    if (now - lastUpdate[pin] < UPDATE_INTERVAL_MS) {
+        return;
+    }
+
+    // --- Only send when change exceeds threshold ---
+    if (abs(filtered - lastOutput[pin]) > THRESHOLD) {
+        lastOutput[pin] = filtered;
+        lastUpdate[pin]  = now;
+        if (isModeSelectorDCS()) {
+            int dcsOutput = map(filtered, 0, 4095, 0, 65535);
+            sendDCSBIOSCommand(dcsIdentifier, dcsOutput);
+        } else {
+            report.rx = filtered;
+            gp.sendReport(report.raw, sizeof(report));
+            debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);
+        }
+    }
 }
 */
 
-// Ultra-Optimized Axis Movement
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
-    constexpr int DEADZONE_LOW = 250;
-    constexpr int DEADZONE_HIGH = 4000;
-    constexpr int THRESHOLD = 512;
-    constexpr int SMOOTHING_FACTOR = 8; // Higher = smoother but slower to react
+    constexpr int DEADZONE_LOW = 60;
+    constexpr int DEADZONE_HIGH = 4050;
+    constexpr int THRESHOLD = 64;  
+    constexpr int SMOOTHING_FACTOR = 8;
+    constexpr int STABILIZATION_CYCLES = 10;
 
     static int lastFiltered[40] = {0};
-    static int lastRaw[40] = {-1};
-    static int lastOutput[40] = {-1};
+    static int lastOutput[40]   = {-1};
+    static unsigned int stabilizationCount[40] = {0};
+    static bool stabilized[40] = {false};
 
     int raw = analogRead(pin);
-
-    // Simple digital low-pass filter (exponential moving average)
-    lastFiltered[pin] = (lastFiltered[pin] * (SMOOTHING_FACTOR - 1) + raw) / SMOOTHING_FACTOR;
+    if (stabilizationCount[pin] == 0) {
+        lastFiltered[pin] = raw;
+    } else {
+        lastFiltered[pin] = (lastFiltered[pin] * (SMOOTHING_FACTOR - 1) + raw) / SMOOTHING_FACTOR;
+    }
 
     int filtered = lastFiltered[pin];
-
-    // Deadzone clamping
-    if (filtered < DEADZONE_LOW) filtered = 0;
+    if (filtered < DEADZONE_LOW)  filtered = 0;
     if (filtered > DEADZONE_HIGH) filtered = 4095;
 
-    // Scale to DCS full range
-    int output = map(filtered, 0, 4095, 0, 65535);
-
-    if (isModeSelectorDCS()) {
-        // DCS Mode
-        if (abs(output - lastOutput[pin]) > THRESHOLD) {
-            lastOutput[pin] = output;
-            sendDCSBIOSCommand(dcsIdentifier, output);
+    if (!stabilized[pin]) {
+        stabilizationCount[pin]++;
+        if (stabilizationCount[pin] >= STABILIZATION_CYCLES) {
+            stabilized[pin] = true;
+            lastOutput[pin] = filtered;
+            if (isModeSelectorDCS()) {
+                int dcsOutput = map(filtered, 0, 4095, 0, 65535);
+                sendDCSBIOSCommand(dcsIdentifier, dcsOutput);
+            } else {
+                report.rx = filtered;
+                gp.sendReport(report.raw, sizeof(report));
+                debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);
+            }
         }
-    } else {
-        // HID Mode
-        if ((filtered == 0 && lastRaw[pin] != 0) ||
-            (filtered == 4095 && lastRaw[pin] != 4095) ||
-            (filtered != 0 && filtered != 4095 && abs(filtered - lastRaw[pin]) > THRESHOLD)) {
-            lastRaw[pin] = filtered;
-            if (!HID.ready()) return;
+        return;
+    }
+
+    if (abs(filtered - lastOutput[pin]) > THRESHOLD) {
+        lastOutput[pin] = filtered;
+        if (isModeSelectorDCS()) {
+            int dcsOutput = map(filtered, 0, 4095, 0, 65535);
+            sendDCSBIOSCommand(dcsIdentifier, dcsOutput);
+        } else {
             report.rx = filtered;
             gp.sendReport(report.raw, sizeof(report));
             debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);

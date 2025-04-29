@@ -10,6 +10,9 @@ bool DEBUG           = false;
 #if VERBOSE_MODE
 bool debugToSerial   = true;
 bool debugToUDP      = true;
+#elif VERBOSE_MODE_WIFI_ONLY
+bool debugToSerial   = false;
+bool debugToUDP      = true;
 #else
 bool debugToSerial   = false;
 bool debugToUDP      = false;
@@ -18,6 +21,7 @@ bool debugToUDP      = false;
 void debugSetOutput(bool toSerial, bool toUDP) {
     debugToSerial = toSerial;
     debugToUDP    = toUDP;
+    debugPrintf("Debug to Serial is set to %s\nDebug to UDP is set to %s\n", debugToSerial ? "ON" : "OFF", debugToUDP ? "ON" : "OFF");
 }
 
 void debugPrint(const char* msg) {

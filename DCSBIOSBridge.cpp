@@ -32,6 +32,103 @@ struct PendingUpdate {
 // ——— Configuration ———
 #define MAX_PENDING_UPDATES 220
 
+// In your globals / above DcsBiosSniffer definition:
+static constexpr unsigned long STREAM_TIMEOUT_MS = 500;  // ms without writes → consider dead
+
+// —————————————————————————————————————————————————————————————
+// Extend your DcsBiosSniffer:
+class DcsBiosSniffer : public DcsBios::ExportStreamListener {
+public:
+    DcsBiosSniffer()
+      : DcsBios::ExportStreamListener(0x7400, 0x77FF),
+        pendingUpdateCount(0),
+        pendingUpdateOverflow(0),
+        _lastWriteMs(0),
+        _streamUp(false)
+    {}
+
+    // Called on every DCS-BIOS write
+    void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
+        unsigned long now = millis();
+
+        // 1) Stream-health logic
+        _lastWriteMs = now;
+        if (!_streamUp) {
+            _streamUp = true;
+            onStreamUp();    // one-time “stream came up” hook
+        }
+
+        // 2) Your existing listener code
+        #if DEBUG_PERFORMANCE
+        beginProfiling("Listener");
+        #endif
+
+        static std::unordered_map<const char*, uint16_t> prev;
+        auto it = addressToEntries.find(addr);
+        if (it == addressToEntries.end()) {
+            #if DEBUG_PERFORMANCE
+            endProfiling("Listener");
+            #endif
+            return;
+        }
+        for (const DcsOutputEntry* entry : it->second) {
+            uint16_t val = (value & entry->mask) >> entry->shift;
+            if (prev[entry->label] == val) continue;
+            prev[entry->label] = val;
+            if (pendingUpdateCount < MAX_PENDING_UPDATES) {
+                pendingUpdates[pendingUpdateCount++] = {entry->label, val, entry->max_value};
+            } else {
+                pendingUpdateOverflow++;
+            }
+        }
+
+        #if DEBUG_PERFORMANCE
+        endProfiling("Listener");
+        #endif
+    }
+
+    // Called at end of each DCS-BIOS frame (after all writes)
+    void onConsistentData() override {
+        // 1) Timeout detection: if we’ve gone too long without a write
+        if (_streamUp && (millis() - _lastWriteMs) >= STREAM_TIMEOUT_MS) {
+            _streamUp = false;
+            onStreamDown();  // one-time “stream went down” hook
+        }
+
+        // 2) Your existing pending-updates flush
+        for (uint16_t i = 0; i < pendingUpdateCount; ++i) {
+            const PendingUpdate& u = pendingUpdates[i];
+            onLedChange(u.label, u.value, u.max_value);
+        }
+        pendingUpdateCount = 0;
+        if (pendingUpdateOverflow > 0) {
+            debugPrintf("[WARNING] %u LED updates dropped\n", pendingUpdateOverflow);
+            pendingUpdateOverflow = 0;
+        }
+    }
+
+    // --- new API to check stream health from your main loop ---
+    bool isStreamAlive() const {
+        return (millis() - _lastWriteMs) < STREAM_TIMEOUT_MS;
+    }
+
+protected:
+    // Override these if you want to react ONCE when state changes:
+    virtual void onStreamUp()   { debugPrintln("[STREAM] UP"); }
+    virtual void onStreamDown(){ debugPrintln("[STREAM] DOWN"); }
+
+private:
+    PendingUpdate    pendingUpdates[MAX_PENDING_UPDATES];
+    uint16_t         pendingUpdateCount;
+    uint32_t         pendingUpdateOverflow;
+
+    // ——— new members for health checking ———
+    unsigned long    _lastWriteMs;
+    bool             _streamUp;
+};
+DcsBiosSniffer mySniffer;  // still your global instance
+
+/*
 class DcsBiosSniffer : public DcsBios::ExportStreamListener {
 public:
     DcsBiosSniffer() : DcsBios::ExportStreamListener(0x7400, 0x77FF), pendingUpdateCount(0), pendingUpdateOverflow(0) {}
@@ -97,112 +194,31 @@ private:
     uint32_t pendingUpdateOverflow;
 };
 DcsBiosSniffer mySniffer;
-
-/*
-class DcsBiosSniffer : public DcsBios::ExportStreamListener {
-public:
-    DcsBiosSniffer() : DcsBios::ExportStreamListener(0x7400, 0x77FF) {
-        pendingUpdates.reserve(180);  // Safe headroom for maximum DCS-BIOS frame load
-    }
-
-    inline uint32_t dcsHash(uint16_t addr, uint16_t mask, uint8_t shift) {
-        return ((uint32_t)addr << 16) ^ (uint32_t)mask ^ ((uint32_t)shift << 1);
-    }
-
-    void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
-
-        #if DEBUG_PERFORMANCE
-        beginProfiling("Listener");
-        #endif
-
-        static std::unordered_map<const char*, uint16_t> prev;
-        auto it = addressToEntries.find(addr);
-        if (it == addressToEntries.end()) {
-            #if DEBUG_PERFORMANCE
-            endProfiling("Listener");
-            #endif
-            return;
-        }
-
-        for (const DcsOutputEntry* entry : it->second) {
-            uint16_t val = (value & entry->mask) >> entry->shift;
-
-            if (prev[entry->label] == val) continue;
-            prev[entry->label] = val;
-
-            // Instead of immediate onLedChange, we queue
-            pendingUpdates.push_back({entry->label, val, entry->max_value});
-        }
-
-        #if DEBUG_PERFORMANCE
-        endProfiling("Listener");
-        #endif
-    }
-
-    // Queue updates and update in one go.
-    void onConsistentData() override {
-        for (const PendingUpdate& u : pendingUpdates) {
-            onLedChange(u.label, u.value, u.max_value);
-        }
-        pendingUpdates.clear();
-    }
-
-private:
-    std::vector<PendingUpdate> pendingUpdates;
-};
-DcsBiosSniffer mySniffer;
-*/
-
-/*
-class DcsBiosSniffer : public DcsBios::ExportStreamListener {
-public:
-    DcsBiosSniffer() : DcsBios::ExportStreamListener(0x7400, 0x77FF) {}
-
-    inline uint32_t dcsHash(uint16_t addr, uint16_t mask, uint8_t shift) {
-        return ((uint32_t)addr << 16) ^ (uint32_t)mask ^ ((uint32_t)shift << 1);
-    }
-
-    void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
-
-        #if DEBUG_PERFORMANCE
-        beginProfiling("onDcsBiosWrite");
-        #endif
-
-        static std::unordered_map<const char*, uint16_t> prev;
-
-        auto it = addressToEntries.find(addr);
-        if (it == addressToEntries.end()) return;
-
-        for (const DcsOutputEntry* entry : it->second) {
-            uint16_t val = (value & entry->mask) >> entry->shift;
-
-            if (prev[entry->label] == val) continue;
-            prev[entry->label] = val;
-
-            onLedChange(entry->label, val, entry->max_value);
-        }
-
-        #if DEBUG_PERFORMANCE
-        endProfiling("onDcsBiosWrite");
-        #endif
-
-    }
-    
-};
-DcsBiosSniffer mySniffer;
 */
 
 // This is to determine mission start and properly initialize cockpit and syncronize with our hardware.
 void onAircraftName(char* str) {
 
     char buf[128];
-    snprintf(buf, sizeof(buf), "[AIRCRAFT] %s.\n", str);
-    debugPrintf("[AIRCRAFT] %s.\n", str);
+    if (str != nullptr && str[0] != '\0') {
+        snprintf(buf, sizeof(buf), "[MISSION START] %s.\n", str);
 
-    // Initialize panel switches
-    if (hasIR) IRCool_init();
-    if (hasECM) ECM_init();
-    if (hasMasterARM) MasterARM_init();
+        #if VERBOSE_PERFORMANCE_ONLY
+            wifiDebugPrintf("[MISSION START] %s\n", str);
+        #else
+            debugPrintf("[MISSION START] %s\n", str);
+        #endif
+
+        // Initialize panel switches
+        initializePanels();
+    }
+    else {
+        #if VERBOSE_PERFORMANCE_ONLY
+            wifiDebugPrintln("[MISSION STOP]");
+        #else
+            debugPrintln("[MISSION STOP]");
+        #endif
+    }
 }
 // Get MetaData to init cockpit state
 DcsBios::StringBuffer<24> aicraftName(0x0000, onAircraftName); // Its safe to do StringBuffer and Integer buffer for addresses OUTSIDE our listener, we do so for MetaData
@@ -253,13 +269,13 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
             setLED(label, false, 0);  // treat as OFF
             char buf[128];
             snprintf(buf, sizeof(buf), "[LED] %s Intensity was set to 0", label);
-            debugPrintln(buf);
+            if(DEBUG) debugPrintln(buf);
         } else {
             if (intensity > 97) intensity = 100;
             setLED(label, true, intensity);
             char buf[128];
             snprintf(buf, sizeof(buf), "[LED] %s Intensity %u\%.", label, value);
-            debugPrintln(buf);
+            if(DEBUG) debugPrintln(buf);
         }
     }
 }
@@ -278,6 +294,10 @@ void DcsbiosProtocolReplay() {
 
     while (ptr < end) {
 
+        #if DEBUG_PERFORMANCE
+            beginProfiling("Replay Loop");
+        #endif
+
         float frameDelay;
         memcpy_P(&frameDelay, ptr, sizeof(float));
         ptr += sizeof(float);
@@ -289,11 +309,20 @@ void DcsbiosProtocolReplay() {
             uint8_t b = pgm_read_byte(ptr + i);
             DcsBios::parser.processChar(b);
             DcsBios::loop();               // ✅ Loop after each byte
-            delayMicroseconds(1);          // simulate serial pace
+            // delayMicroseconds(1);          // simulate serial pace
         }
         ptr += len;
 
         DcsBios::loop();                   // catch final updates
+
+        #if DEBUG_PERFORMANCE
+            endProfiling("Replay Loop");
+        #endif
+
+        #if DEBUG_PERFORMANCE
+            perfMonitorUpdate();
+        #endif
+
         delay((unsigned long)(frameDelay * 1000));
 
     }
@@ -308,12 +337,6 @@ void DCSBIOS_init() {
     #endif
 
     DcsBios::setup();
-    debugPrintln("\nDCSBIOS Library Initialization Complete.");
-
-    #if IS_REPLAY
-    // Begin simulated loop
-    DcsbiosProtocolReplay();
-    #endif
 }
 
 void DCSBIOS_loop() {
@@ -333,17 +356,21 @@ void DCSBIOS_loop() {
 }
 
 void sendDCSBIOSCommand(const char* label, uint16_t value) {
-    // Any conditional logic before sending a command to DCS should go here (e.g. cover checks)
 
     char valueStr[10];
-    snprintf(valueStr, sizeof(valueStr), "%u", value); // safely format value into a string
+    snprintf(valueStr, sizeof(valueStr), "%u", value);
 
-    // DcsBios::tryToSendDcsBiosMessage(label, valueStr);
-    DcsBios::sendDcsBiosMessage(label, valueStr);
+    // If DTR was asserted + terminal is connected we send the DCS Command. Also if the stream is Alive we send commands
+    // The idea is that we'll NEVER call DcsBios::sendDcsBiosMessage without making sure it can receive our data
+    if (tud_cdc_connected() || mySniffer.isStreamAlive()) {
+        DcsBios::sendDcsBiosMessage(label, valueStr);
+        debugPrintf("🛩️ DCS Command Sent: %s %s\n", label, valueStr);
+        return;
+    }
 
     #if VERBOSE_PERFORMANCE_ONLY
-        wifiDebugPrintf("🛩️ DCS Command Sent: %s %s\n", label, valueStr);
+        wifiDebugPrintf("⚠️ [NOT CONNECTED] Command suppressed: %s %s\n", label, valueStr);
     #else
-        debugPrintf("🛩️ DCS Command Sent: %s %s\n", label, valueStr);
+        debugPrintf("⚠️ [NOT CONNECTED] Command suppressed: %s %s\n", label, valueStr);
     #endif
 }

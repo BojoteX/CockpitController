@@ -1,5 +1,13 @@
 #pragma once
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// When you make changes here make sure you CLEAN your prev compile or close your IDE and open again
+// If you don't and re-compile you wont see your options take effect.
+//
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Self explanatory, don't change if you don't know what you are doing
 #define POLLING_RATE_HZ       250 // Panel and HID polling rate (125, 250, 500 and 1000 are all valid)
 
@@ -19,18 +27,21 @@
 #define DEBUG_ENABLED 0
 
 // Enable WiFi debug (UDP output) when set to 1; disable with 0
-#define DEBUG_USE_WIFI 0 // DEBUG_ENABLED should be set to 1 for you to see any output
+#define DEBUG_USE_WIFI 1 // DEBUG_ENABLED should be set to 1 for you to see any output
 
 // Enable Profiling for specific blocks with beginProfiling / endProfiling (not for use in production)
-#define DEBUG_PERFORMANCE 0 
+#define DEBUG_PERFORMANCE 1 
 
 // enables always-on output regardless of DEBUG without the performance penalty of DEBUG_ENABLED
-#define VERBOSE_MODE 0
+#define VERBOSE_MODE 1
+
+// Same as above but outputs to WiFi (very useful)
+#define VERBOSE_MODE_WIFI_ONLY 0
 
 // This will output via UDP ONLY so you need to enable DEBUG_USE_WIFI.
 #define VERBOSE_PERFORMANCE_ONLY 0
 
-// If DEBUG_ENABLED and TEST_LEDS is active you see a Menu when you start the device to test LEDS via console  
+// You'll see a Menu when you start the device to test LEDS via console.  
 #define TEST_LEDS 0
 
 // How frequent you want to see the performance snapshot + profiling blocks? requires DEBUG_PERFORMANCE enabled

@@ -164,6 +164,77 @@ void perfMonitorUpdate() {
     if (nowMs - _lastReportMs < PERFORMANCE_SNAPSHOT_INTERVAL_MS) return;
     unsigned long windowMs = nowMs - _lastReportMs;
 
+    // Header
+    perfDebugPrintln("\n\n────────────────────────────────────── [ PERFORMANCE SNAPSHOT ] ──────────────────────────────────────");
+    perfDebugPrintln("● [Profiling Averages]");
+
+    // 1) Print averages and capture Main Loop avg
+    float mainLoopAvgMs = 0.0f;
+    for (auto it = _accumulators.begin(); it != _accumulators.end(); ) {
+        const auto& lbl = it->first;
+        const auto& a   = it->second;
+        float avgMs     = a.cnt ? (a.sumUs / (float)a.cnt) / 1000.0f : 0.0f;
+        if (lbl == "Main Loop") {
+            mainLoopAvgMs = avgMs;
+        }
+        perfDebugPrintf("  └─ %-16s: avg %6.2f ms\n", lbl.c_str(), avgMs);
+        it = _accumulators.erase(it);
+    }
+
+    // 2) Compute metrics based on poll rate
+    constexpr float frameMs      = 1000.0f / POLLING_RATE_HZ;      // e.g. 4.0 ms @ 250 Hz
+    float           pollLoadPct  = (mainLoopAvgMs / frameMs) * 100.0f;
+    float           headroomMs   = frameMs - mainLoopAvgMs;
+    float           headroomPct  = 100.0f - pollLoadPct;
+    float           scaleFactor  = mainLoopAvgMs > 0.0f
+                                 ? (frameMs / mainLoopAvgMs)
+                                 : 0.0f;
+
+    // 3) Print poll-budget load, headroom, and scale capacity
+    perfDebugPrintln("\n● [System Status]");
+    perfDebugPrintf("  └─ Poll Load       : %5.1f%% of %.2f ms slot\n", pollLoadPct, frameMs);
+    perfDebugPrintf("  └─ Headroom        : %5.3f ms (%5.1f%%)\n",          headroomMs, headroomPct);
+    perfDebugPrintf("  └─ Scale Capacity  : %5.2fx current workload\n",        scaleFactor);
+
+    // 4) Print the rest of your existing status info
+    size_t freeHeap  = ESP.getFreeHeap() / 1024;
+    size_t maxAlloc  = ESP.getMaxAllocHeap() / 1024;
+    float  fragPct   = freeHeap
+                     ? ((freeHeap - maxAlloc) / (float)freeHeap) * 100.0f
+                     : 0.0f;
+
+    float tempC = 0.0f;
+    temperature_sensor_get_celsius(_tempHandle, &tempC);
+    int cpuMHz = ESP.getCpuFreqMHz();
+
+    uint64_t uptimeSec = esp_timer_get_time() / 1000000ULL;
+    uint32_t mins      = uptimeSec / 60;
+    uint32_t secs      = uptimeSec % 60;
+    const char* rr     = _resetReasonToString(esp_reset_reason());
+
+    if (mins) {
+        perfDebugPrintf("  └─ Uptime         : %lum%02lus\n", mins, secs);
+    } else {
+        perfDebugPrintf("  └─ Uptime         : %4lus\n", secs);
+    }
+    perfDebugPrintf("  └─ CPU Frequency  : %d MHz\n",       cpuMHz);
+    perfDebugPrintf("  └─ Temperature    : %.1f°C\n",       tempC);
+    perfDebugPrintf("  └─ Heap Free      : %u KB\n",        (unsigned)freeHeap);
+    perfDebugPrintf("  └─ Largest Block  : %u KB\n",       (unsigned)maxAlloc);
+    perfDebugPrintf("  └─ Heap Fragment. : %.1f%%\n",       fragPct);
+    perfDebugPrintf("  └─ Last Reset     : %s\n",          rr);
+
+    perfDebugPrintln("──────────────────────────────────────────────────────────────────────────────────────────────────────\n");
+
+    _lastReportMs = nowMs;
+}
+
+/*
+void perfMonitorUpdate() {
+    unsigned long nowMs = millis();
+    if (nowMs - _lastReportMs < PERFORMANCE_SNAPSHOT_INTERVAL_MS) return;
+    unsigned long windowMs = nowMs - _lastReportMs;
+
     perfDebugPrintln("\n\n────────────────────────────────────── [ PERFORMANCE SNAPSHOT ] ──────────────────────────────────────");
     perfDebugPrintln("● [Profiling Averages]");
 
@@ -221,5 +292,6 @@ void perfMonitorUpdate() {
 
     perfDebugPrintln("──────────────────────────────────────────────────────────────────────────────────────────────────────\n");
 }
+*/
 
 #endif // DEBUG_PERFORMANCE

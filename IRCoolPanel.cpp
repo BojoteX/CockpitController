@@ -80,6 +80,10 @@ void IRCool_loop() {
   static unsigned long lastIRCoolPoll = 0;
   if (!shouldPollMs(lastIRCoolPoll)) return;
 
+  // Update the HMD knob (not subject to polling rate!) we do that inside our function to read more samples and smooth the axis
+  // so we don't spam serial CDC with values repeatedly.
+  HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
+
   byte port0, port1;
   if (!readPCA9555(IRCOOL_PCA_ADDR, port0, port1)) return;
 
@@ -104,9 +108,6 @@ void IRCool_loop() {
     else
       HIDManager_setNamedButton("IR_COOL_SW_NORM");
   }
-
-  // update the HMD knob
-  HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
 
   // Update previous states
   prevIRCPort0 = port0;

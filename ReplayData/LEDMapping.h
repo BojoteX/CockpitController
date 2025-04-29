@@ -1,14 +1,14 @@
-// THIS FILE IS AUTO-GENERATED; DO NOT EDIT MANUALLY
+// THIS FILE IS AUTO-GENERATED; ONLY EDIT INDIVIDUAL LED/GAUGE RECORDS, DO NOT ADD OR DELETE THEM HERE
 #pragma once
 
 // Embedded LEDMapping structure and enums
 enum LEDDeviceType {
-  DEVICE_PCA9555,
-  DEVICE_TM1637,
-  DEVICE_NONE,
-  DEVICE_GPIO,
-  DEVICE_WS2812,
   DEVICE_GN1640T,
+  DEVICE_TM1637,
+  DEVICE_GPIO,
+  DEVICE_PCA9555,
+  DEVICE_WS2812,
+  DEVICE_NONE,
 };
 
 struct LEDMapping {
@@ -27,59 +27,59 @@ struct LEDMapping {
 
 // Auto-generated panelLEDs array
 static const LEDMapping panelLEDs[] = {
-  { "FIRE_APU_LT"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_APU_ACC_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_BATT_SW_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_CK_SEAT_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_FCES_LT"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_FCS_HOT_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_FUEL_LO_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_GEN_TIE_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_L_GEN_LT"      , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_R_GEN_LT"      , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_SPARE_CTN1_LT" , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_SPARE_CTN2_LT" , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CLIP_SPARE_CTN3_LT" , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CMSD_JET_SEL_L"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CHART_DIMMER"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "CONSOLES_DIMMER"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "FLOOD_DIMMER"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "INST_PNL_DIMMER"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "WARN_CAUTION_DIMMER", DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_ASPJ_OH"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_GO"          , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_L_BAR_GREEN" , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_L_BAR_RED"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_L_BLEED"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_NO_GO"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_REC"         , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_R_BLEED"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_SPD_BRK"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_STBY"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LH_ADV_XMIT"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "FIRE_LEFT_LT"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LS_LOCK"            , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LS_SHOOT"           , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "LS_SHOOT_STROBE"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "HMD_OFF_BRT"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "SPIN_LT"            , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "MASTER_MODE_AA_LT"  , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "MASTER_MODE_AG_LT"  , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "MC_DISCH"           , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "MC_READY"           , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "MASTER_CAUTION_LT"  , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_AAA"         , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_AI"          , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_CW"          , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_DISP"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_RCDR_ON"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_SAM"         , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_SPARE_RH1"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_SPARE_RH2"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_SPARE_RH3"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_SPARE_RH4"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "RH_ADV_SPARE_RH5"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false },
-  { "FIRE_RIGHT_LT"      , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }
+  { "FIRE_APU_LT"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_APU_ACC_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_BATT_SW_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_CK_SEAT_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_FCES_LT"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_FCS_HOT_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_FUEL_LO_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_GEN_TIE_LT"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_L_GEN_LT"      , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_R_GEN_LT"      , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_SPARE_CTN1_LT" , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_SPARE_CTN2_LT" , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CLIP_SPARE_CTN3_LT" , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CMSD_JET_SEL_L"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CHART_DIMMER"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "CONSOLES_DIMMER"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "FLOOD_DIMMER"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "INST_PNL_DIMMER"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "WARN_CAUTION_DIMMER", DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_ASPJ_OH"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_GO"          , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_L_BAR_GREEN" , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_L_BAR_RED"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_L_BLEED"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_NO_GO"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_REC"         , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_R_BLEED"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_SPD_BRK"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_STBY"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LH_ADV_XMIT"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "FIRE_LEFT_LT"       , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LS_LOCK"            , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LS_SHOOT"           , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "LS_SHOOT_STROBE"    , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "HMD_OFF_BRT"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "SPIN_LT"            , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "MASTER_MODE_AA_LT"  , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "MASTER_MODE_AG_LT"  , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "MC_DISCH"           , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "MC_READY"           , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "MASTER_CAUTION_LT"  , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_AAA"         , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_AI"          , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_CW"          , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_DISP"        , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_RCDR_ON"     , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_SAM"         , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_SPARE_RH1"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_SPARE_RH2"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_SPARE_RH3"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_SPARE_RH4"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "RH_ADV_SPARE_RH5"   , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info,
+  { "FIRE_RIGHT_LT"      , DEVICE_NONE    , {.gpioInfo = {0}}, false, false }, // No Info
 };
 
 static constexpr uint16_t panelLEDsCount = sizeof(panelLEDs)/sizeof(panelLEDs[0]);
@@ -200,15 +200,16 @@ static const LEDHashEntry ledHashTable[107] = {
 constexpr uint16_t ledHash(const char* str) {
   uint16_t hash = 5381;
   while (*str) { hash = ((hash << 5) + hash) + *str++; }
-  return hash % 107;
+  return hash;
 }
 
 // findLED lookup
 inline const LEDMapping* findLED(const char* label) {
-  uint16_t h = ledHash(label);
-  for (int i = 0; i < 107; ++i) {
-    const auto& entry = ledHashTable[(h + i) % 107];
-    if (!entry.label) return nullptr;
+  uint16_t startH = ledHash(label) % 107;
+  for (uint16_t i = 0; i < 107; ++i) {
+    uint16_t idx = (startH + i >= 107) ? (startH + i - 107) : (startH + i);
+    const auto& entry = ledHashTable[idx];
+    if (!entry.label) continue;
     if (strcmp(entry.label, label) == 0) return entry.led;
   }
   return nullptr;

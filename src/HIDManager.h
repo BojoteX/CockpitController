@@ -5,6 +5,9 @@
 // Initialize HID device and descriptors
 void HIDManager_begin();
 
+// Anything we need from HIDManager to execute during the main loop
+void HIDManager_loop();
+
 // Set RX axis (0–4095)
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin);
 

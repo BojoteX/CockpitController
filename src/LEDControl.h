@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "LEDMapping.h"
+#include "LABELS/LEDMapping.h"
 
 // Public API for LED Control
 void initializeLEDs(const char* activePanels[], unsigned int panelCount);
