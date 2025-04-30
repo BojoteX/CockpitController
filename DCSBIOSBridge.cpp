@@ -40,56 +40,6 @@ public:
         _streamUp(false)
     {}
 
-    /*
-    void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
-        unsigned long now = millis();
-
-        // 1) Stream-health logic
-        _lastWriteMs = now;
-        if (!_streamUp) {
-            _streamUp = true;
-            onStreamUp();    // one-time “stream came up” hook
-        }
-
-        static std::unordered_map<const char*, uint16_t> prev;
-        auto it = addressToEntries.find(addr);
-        if (it == addressToEntries.end()) {
-            return;
-        }
-
-        // 2) Dispatch per control type
-        for (const DcsOutputEntry* entry : it->second) {
-            uint16_t val = (value & entry->mask) >> entry->shift;
-
-            if (prev[entry->label] == val) continue;
-            prev[entry->label] = val;
-
-            switch (entry->controlType) {
-                case CT_LED:
-                case CT_ANALOG:
-                    if (pendingUpdateCount < MAX_PENDING_UPDATES) {
-                        pendingUpdates[pendingUpdateCount++] = {entry->label, val, entry->max_value};
-                    } else {
-                        pendingUpdateOverflow++;
-                    }
-                    break;
-
-                case CT_SELECTOR:
-                    onSelectorChange(entry->label, val);
-                    break;
-
-                case CT_DISPLAY:
-                    // Placeholder — will later call onDisplayChange(entry->label, val);
-                    break;
-
-                case CT_METADATA:
-                    // Placeholder — will later call onMetadataChange(entry->label, val);
-                    break;
-            }
-        }
-    }
-    */
-    
     void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
         unsigned long now = millis();
 
@@ -244,8 +194,16 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
 }
 
 void onSelectorChange(const char* label, unsigned int value) {
-    setTrackedState(label, value > 0);  // 🔒 This is now static table-backed
-    debugPrintf("[STATE UPDATE] %s = %s\n", label, value > 0 ? "ON/OPEN" : "OFF/CLOSED");
+    setTrackedState(label, value > 0);
+
+    const char* stateStr;
+    if (strstr(label, "_COVER")) {
+        stateStr = (value > 0) ? "OPEN" : "CLOSED";
+    } else {
+        stateStr = (value > 0) ? "ON" : "OFF";
+    }
+
+    debugPrintf("[STATE UPDATE] %s = %s\n", label, stateStr);
 }
 
 #if IS_REPLAY

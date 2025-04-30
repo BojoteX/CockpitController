@@ -196,7 +196,7 @@ tracked_labels = sorted(tracked_labels)
 
 with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
     f.write("// Auto-generated DCSBIOS Bridge Data (JSON‑only) - DO NOT EDIT\n")
-    f.write("#pragma once\n\n#include <stdint.h>\n#include <vector>\n#include <unordered_map>\n\n")
+    f.write("#pragma once\n\n#include <stdint.h>\n\n")
 
     # Outputs
     f.write("enum ControlType : uint8_t {\n")
@@ -230,9 +230,47 @@ with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
         f.write(f"  {{ 0x{addr:04X}, {{ {ptrs} }}, {count} }},\n")
     f.write("};\n\n")
 
+    # Generate hash table for address → AddressEntry*
+    address_entries = list(addr_map.items())
+    desired_addr_count = len(address_entries) * 2
+    ADDR_TABLE_SIZE = next_prime(max(desired_addr_count, 53))
+
+    addr_hash_table = ["{0xFFFF, nullptr}"] * ADDR_TABLE_SIZE
+    for idx, (addr, _) in enumerate(address_entries):
+        h = addr % ADDR_TABLE_SIZE
+        for probe in range(ADDR_TABLE_SIZE):
+            if addr_hash_table[h] == "{0xFFFF, nullptr}":
+                addr_hash_table[h] = f"{{ 0x{addr:04X}, &dcsAddressTable[{idx}] }}"
+                break
+            h = (h + 1) % ADDR_TABLE_SIZE
+        else:
+            print(f"❌ Address hash table full! ADDR_TABLE_SIZE={ADDR_TABLE_SIZE} too small", file=sys.stderr)
+            sys.exit(1)
+
+    # Emit hash table and lookup
+    f.write("// Address hash entry\n")
+    f.write("struct DcsAddressHashEntry {\n")
+    f.write("  uint16_t addr;\n")
+    f.write("  const AddressEntry* entry;\n")
+    f.write("};\n\n")
+
+    f.write(f"static const DcsAddressHashEntry dcsAddressHashTable[{ADDR_TABLE_SIZE}] = {{\n")
+    for entry in addr_hash_table:
+        f.write(f"  {entry},\n")
+    f.write("};\n\n")
+
+    f.write("// Simple address hash (modulo)\n")
+    f.write("constexpr uint16_t addrHash(uint16_t addr) {\n")
+    f.write(f"  return addr % {ADDR_TABLE_SIZE};\n")
+    f.write("}\n\n")
+
     f.write("inline const AddressEntry* findDcsOutputEntries(uint16_t addr) {\n")
-    f.write("  for (uint8_t i = 0; i < sizeof(dcsAddressTable)/sizeof(dcsAddressTable[0]); ++i) {\n")
-    f.write("    if (dcsAddressTable[i].addr == addr) return &dcsAddressTable[i];\n")
+    f.write(f"  uint16_t startH = addrHash(addr);\n")
+    f.write(f"  for (uint16_t i = 0; i < {ADDR_TABLE_SIZE}; ++i) {{\n")
+    f.write(f"    uint16_t idx = (startH + i >= {ADDR_TABLE_SIZE}) ? (startH + i - {ADDR_TABLE_SIZE}) : (startH + i);\n")
+    f.write("    const auto& entry = dcsAddressHashTable[idx];\n")
+    f.write("    if (entry.addr == 0xFFFF) continue;\n")
+    f.write("    if (entry.addr == addr) return entry.entry;\n")
     f.write("  }\n")
     f.write("  return nullptr;\n")
     f.write("}\n\n")
