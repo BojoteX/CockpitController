@@ -83,29 +83,24 @@ void HIDManager_begin() {
 
   // Init DCSBIOS (Includes serial)
   DCSBIOS_init();
-
-  // This is so that we can cleanly override DTR gating as SOCAT is dumb.
-  // Serial.setDebugOutput(1);
-  // Serial.setRxBufferSize(4096);
-  // Serial.setTxTimeoutMs(500);
+  delay(2000);
   
   // Load input bitmasks
   buildHIDGroupBitmasks();
 
+  // Configure custom USB descriptors **before** starting HID
+  USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
+  USB.PID(0x18FF);                                // Set Product ID
+  USB.productName("FA-18C Cockpit Controller");   // Product string
+  USB.manufacturerName("Bojote");                 // Manufacturer string
+  USB.serialNumber("FA18C-AB-02");                // Serial number string
+
+  // USB Stack init (seems to start on its own)
+  USB.begin();
+
   // We only initialize this when in HID mode, so we'll be effectively CDC only
   if(!isModeSelectorDCS()) {
-
-    // Configure custom USB descriptors **before** starting HID
-    USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
-    USB.PID(0x1602);                                // Set Product ID
-    USB.productName("FA-18C Cockpit Controller");   // Product string
-    USB.manufacturerName("Bojote");                 // Manufacturer string
-    USB.serialNumber("FA18C-AB-02");                // Serial number string
-
-    // USB Stack init (seems to start on its own)
-    USB.begin();
-
-    HID.begin(); // We always initialize it, but limit HID report sending in main loop
+    HID.begin();
     while (!HID.ready()) { delay(10); }; //Do not continue until HID is ready
   }
 }
@@ -117,86 +112,6 @@ void HIDManager_loop() {
   if (!isModeSelectorDCS()) HIDManager_keepAlive();
 
 }
-
-// Drop-in replacement for HIDManager_moveAxis()
-// Seeds the filter to raw on first stabilization cycle to avoid spurious 0 output.
-/*
-void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
-    constexpr int DEADZONE_LOW = 60;
-    constexpr int DEADZONE_HIGH = 4050;
-    constexpr int THRESHOLD = 64;  
-    constexpr int SMOOTHING_FACTOR = 8;
-    constexpr int STABILIZATION_CYCLES = 10;
-    constexpr unsigned long UPDATE_INTERVAL_MS = 1000UL / POLLING_RATE_HZ;
-
-
-    static int lastFiltered[40] = {0};
-    static int lastOutput[40]   = {-1};
-    static unsigned long lastUpdate[40] = {0};
-    static unsigned int stabilizationCount[40] = {0};
-    static bool stabilized[40] = {false};
-    static unsigned long lastStabilizationPoll[40] = {0};
-
-    unsigned long now = millis();
-    const unsigned long pollingIntervalMs = 1000 / POLLING_RATE_HZ;
-
-    // --- Read & smooth (seed on first cycle) ---
-    int raw = analogRead(pin);
-    if (stabilizationCount[pin] == 0) {
-        lastFiltered[pin] = raw;
-    } else {
-        lastFiltered[pin] = (lastFiltered[pin] * (SMOOTHING_FACTOR - 1) + raw) / SMOOTHING_FACTOR;
-    }
-
-    int filtered = lastFiltered[pin];
-    // --- Deadzone / fullscale clamp ---
-    if (filtered < DEADZONE_LOW)  filtered = 0;
-    if (filtered > DEADZONE_HIGH) filtered = 4095;
-
-    // --- Stabilization: first few cycles, no sends ---
-    if (!stabilized[pin]) {
-        if (now - lastStabilizationPoll[pin] >= pollingIntervalMs) {
-            lastStabilizationPoll[pin] = now;
-            stabilizationCount[pin]++;
-        }
-        if (stabilizationCount[pin] < STABILIZATION_CYCLES) {
-            return;
-        }
-        // On the cycle we cross STABILIZATION_CYCLES, send exactly once:
-        stabilized[pin] = true;
-        lastOutput[pin] = filtered;
-        lastUpdate[pin] = now;
-        if (isModeSelectorDCS()) {
-            int dcsOutput = map(filtered, 0, 4095, 0, 65535);
-            sendDCSBIOSCommand(dcsIdentifier, dcsOutput);
-        } else {
-            report.rx = filtered;
-            gp.sendReport(report.raw, sizeof(report));
-            debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);
-        }
-        return;
-    }
-
-    // --- After stabilized: enforce minimum interval ---
-    if (now - lastUpdate[pin] < UPDATE_INTERVAL_MS) {
-        return;
-    }
-
-    // --- Only send when change exceeds threshold ---
-    if (abs(filtered - lastOutput[pin]) > THRESHOLD) {
-        lastOutput[pin] = filtered;
-        lastUpdate[pin]  = now;
-        if (isModeSelectorDCS()) {
-            int dcsOutput = map(filtered, 0, 4095, 0, 65535);
-            sendDCSBIOSCommand(dcsIdentifier, dcsOutput);
-        } else {
-            report.rx = filtered;
-            gp.sendReport(report.raw, sizeof(report));
-            debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);
-        }
-    }
-}
-*/
 
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
     constexpr int DEADZONE_LOW = 60;
@@ -275,29 +190,127 @@ void HIDManager_keepAlive() {
   gp.sendReport(report.raw, sizeof(report));
 }
 
+void HIDManager_toggleIfPressed(bool isPressed, const char* label, bool deferSend) {
+    static std::array<bool, 64> lastStates = {false};  // Up to 64 tracked buttons
+    int index = trackedIndexFor(label);
+    if (index == -1) return;
 
-// Set Named Button State
-void HIDManager_setNamedButton(const String& name, bool deferSend, bool pressed) {
-  for (size_t i = 0; i < InputMappingSize; ++i) {
-    const InputMapping& m = InputMappings[i];
-    if (name == m.label) {
-      if (isModeSelectorDCS()) {
-        if (m.oride_label && m.oride_value >= 0)
-          sendDCSBIOSCommand(m.oride_label, pressed ? m.oride_value : 0);
-        return;
-      }
-      if (m.hidId <= 0) return;
-      uint32_t mask = (1UL << (m.hidId - 1));
-      if (m.group > 0 && pressed)
-        report.buttons &= ~groupBitmask[m.group];
-      if (pressed)
-        report.buttons |= mask;
-      else
-        report.buttons &= ~mask;
-      if (!deferSend && HID.ready())
-        gp.sendReport(report.raw, sizeof(report));
-      return;
+    bool prev = lastStates[index];
+    lastStates[index] = isPressed;
+
+    if (isPressed && !prev) {
+        HIDManager_setToggleNamedButton(label, deferSend);
+    }
+}
+
+void HIDManager_setToggleNamedButton(const char* name, bool deferSend) {
+  const char* label = name;
+  const InputMapping* m = findInputByLabel(label);
+  if (!m) {
+    debugPrintf("⚠️ [HIDManager] %s UNKNOWN (toggle)\n", label);
+    return;
+  }
+
+  bool newState = !getTrackedState(label);
+  setTrackedState(label, newState);
+
+  if (isModeSelectorDCS()) {
+    if (m->oride_label && m->oride_value >= 0)
+      sendDCSBIOSCommand(m->oride_label, newState ? m->oride_value : 0);
+    return;
+  }
+
+  if (m->hidId <= 0) return;
+
+  uint32_t mask = (1UL << (m->hidId - 1));
+
+  if (m->group > 0 && newState)
+    report.buttons &= ~groupBitmask[m->group];
+
+  if (newState)
+    report.buttons |= mask;
+  else
+    report.buttons &= ~mask;
+
+  if (!deferSend && HID.ready())
+    gp.sendReport(report.raw, sizeof(report));
+}
+
+void HIDManager_handleGuardedToggle(bool isPressed, const char* switchLabel, const char* coverLabel, const char* fallbackLabel, bool deferSend) {
+  static std::array<bool, 64> lastState = {false};
+  int index = trackedIndexFor(switchLabel);
+  if (index == -1) return;
+
+  bool wasPressed = lastState[index];
+  lastState[index] = isPressed;
+
+  if (isPressed && !wasPressed) {
+    if (!isCoverOpen(coverLabel)) {
+      HIDManager_setToggleNamedButton(coverLabel, deferSend);
+      debugPrintf("✅ Cover [%s] opened for [%s]\n", coverLabel, switchLabel);
+    }
+    HIDManager_setNamedButton(switchLabel, deferSend, true);
+  }
+
+  if (!isPressed && wasPressed) {
+    HIDManager_setNamedButton(switchLabel, deferSend, false);
+    if (isCoverOpen(coverLabel)) {
+      HIDManager_setToggleNamedButton(coverLabel, deferSend);
+      debugPrintf("✅ Cover [%s] closed after releasing [%s]\n", coverLabel, switchLabel);
+    }
+    if (fallbackLabel) {
+      HIDManager_setNamedButton(fallbackLabel, deferSend, true);
     }
   }
-  debugPrintf("⚠️ [HIDManager] %s UNKNOWN\n", name.c_str());
+}
+
+void HIDManager_handleGuardedMomentary(bool isPressed, const char* buttonLabel, const char* coverLabel, bool deferSend) {
+  static std::array<bool, 64> lastStates = {false};  // up to 64 tracked
+  int index = trackedIndexFor(buttonLabel);
+  if (index == -1) return;
+
+  bool wasPressed = lastStates[index];
+  lastStates[index] = isPressed;
+
+  if (isPressed && !wasPressed) {
+    if (!isCoverOpen(coverLabel)) {
+      HIDManager_setToggleNamedButton(coverLabel, deferSend);
+      debugPrintf("✅ Cover [%s] auto-opened\n", coverLabel);
+      return; // Do not press button yet — wait for user to release and press again
+    }
+    HIDManager_setNamedButton(buttonLabel, deferSend, true);
+  }
+
+  if (!isPressed && wasPressed) {
+    HIDManager_setNamedButton(buttonLabel, deferSend, false);
+  }
+}
+
+void HIDManager_setNamedButton(const char* name, bool deferSend, bool pressed) {
+  const InputMapping* m = findInputByLabel(name);
+  if (!m) {
+    debugPrintf("⚠️ [HIDManager] %s UNKNOWN\n", name);
+    return;
+  }
+
+  if (isModeSelectorDCS()) {
+    if (m->oride_label && m->oride_value >= 0)
+      sendDCSBIOSCommand(m->oride_label, pressed ? m->oride_value : 0);
+    return;
+  }
+
+  if (m->hidId <= 0) return;
+
+  uint32_t mask = (1UL << (m->hidId - 1));
+
+  if (m->group > 0 && pressed)
+    report.buttons &= ~groupBitmask[m->group];
+
+  if (pressed)
+    report.buttons |= mask;
+  else
+    report.buttons &= ~mask;
+
+  if (!deferSend && HID.ready())
+    gp.sendReport(report.raw, sizeof(report));
 }

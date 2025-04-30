@@ -18,15 +18,11 @@
 // -- GPIO Pin Configuration --
 #define SDA_PIN 8                      // I2C Data Pin
 #define SCL_PIN 9                      // I2C Clock Pin
-#define MODE_SWITCH_PIN 33             // Mode Selection Pin (DCS-BIOS/HID)
 
 // PCA Only panels will be autodetected
-bool hasBrain = false;
-bool hasECM = false;
-bool hasMasterARM = false;
-
-// is DCS connected?
-bool dcsConnected = false; 
+bool hasBrain     = false; // Brain Controller PCB (e.g TEK Brain uses PCA9555 0x26 for IRCool) autodetected by our program.
+bool hasECM       = false; // Panel uses PCA9555 0x22, it is autodetected by our program
+bool hasMasterARM = false; // Panel uses 0x5B, it is autodetected by our program
 
 // -- Panel Modules --
 #include "src/LeftAnnunciator.h"
@@ -40,9 +36,14 @@ bool dcsConnected = false;
 
 // Checks mode selector state
 bool isModeSelectorDCS() {
+  #if HAS_HID_MODE_SELECTOR
   return digitalRead(MODE_SWITCH_PIN) == HIGH;
+  #else
+  return true;
+  #endif
 }
 
+// For reference only
 void measureI2Cspeed(uint8_t deviceAddr) {
   uint32_t t0 = micros();
   Wire.requestFrom(deviceAddr, 2);
@@ -53,6 +54,7 @@ void measureI2Cspeed(uint8_t deviceAddr) {
   debugPrintf("I²C at 0x%02X Read Time: %u us\n", deviceAddr, t1 - t0);
 }
 
+// Reads panel current state during init
 void initializePanels() {
   if (hasRA) RightAnnunciator_init();
   if (hasLA) LeftAnnunciator_init();
@@ -61,46 +63,57 @@ void initializePanels() {
   if (hasMasterARM) MasterARM_init();  
 }
 
+bool panelExists(uint8_t targetAddr) {
+  for (uint8_t i = 0; i < discoveredDeviceCount; ++i) {
+    if (discoveredDevices[i].address == targetAddr) return true;
+  }
+  return false;
+}
+
 // Arduino Setup Routine
 void setup() {
-  // Starts our HID device
+  // Starts our USB/CDC + HID device
   HIDManager_begin();
   
-  // Activates during DEBUG mode
-  enablePCA9555Logging(0);
+  // Activates during DEBUG mode, useful to get Port/Bit info for PCA Devices
+  enablePCA9555Logging(DEBUG);
 
-  // Just use to override. Not really needed.
-  // debugSetOutput(true, true); // First parameter is output to Serial, second one is output to UDP (if DEBUG_USE_WIFI enabled)
-  debugSetOutput(debugToSerial, debugToUDP); // First parameter is output to Serial, second one is output to UDP (if DEBUG_USE_WIFI enabled)
+  // First parameter is output to Serial, second one is output to UDP (only use this for overriding output)
+  debugSetOutput(debugToSerial, debugToUDP); 
 
   #if DEBUG_USE_WIFI
   wifi_setup();
   #endif
 
+  // Only do this if we have a selector
+  #if HAS_HID_MODE_SELECTOR
   // GPIO Setup
   pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
+  #endif
+
+  // Sets standard read resolution and attenuation
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
 
   // I2C Initialization
   Wire.begin(SDA_PIN, SCL_PIN);
 
+  // ONLY if fast mode is selected. Very unstable, device reboots.
   #if PCA_FAST_MODE
   Wire.setClock(400000);
   #endif
 
-  // Detect Panels (They are off by default)
+  // Detect PCA Panels (They are disabled by default)
   scanConnectedPanels();
 
-  debugPrintln("\n=== Cockpit Brain Controller Initialization ===");
-
   // Show PCA Panels we discovered
+  debugPrintln("\n=== Cockpit Brain Controller Initialization ===");
   printDiscoveredPanels();
 
   // Automatic PCA Panel detection (use the i2c scanner to get addresses)
-  hasBrain     = discoveredDevices.count(0x26); // Brain Controller
-  hasECM       = discoveredDevices.count(0x22); // ECM Panel
-  hasMasterARM = discoveredDevices.count(0x5B); // Master ARM
+  hasBrain     = panelExists(0x26);
+  hasECM       = panelExists(0x22);
+  hasMasterARM = panelExists(0x5B);
 
   if(hasBrain) debugPrintln("Brain Controller detected");
   if(hasECM) debugPrintln("ECM Panel detected");
@@ -113,8 +126,9 @@ void setup() {
 
   // Initialize PCA9555 Cached Port States explicitly to OFF (active-low LEDs)
   debugPrintln("Initializing PCA9555 Cached Port States...");
-  for (auto const& device : discoveredDevices) {
-    uint8_t addr = device.first;
+  for (uint8_t i = 0; i < discoveredDeviceCount; ++i) {
+    uint8_t addr = discoveredDevices[i].address;
+
     PCA9555_cachedPortStates[addr][0] = 0xFF;
     PCA9555_cachedPortStates[addr][1] = 0xFF;
 
@@ -142,34 +156,39 @@ void setup() {
   ADD_PANEL_IF_ENABLED(hasECM, "ECM");
   ADD_PANEL_IF_ENABLED(hasMasterARM, "ARM");
 
-  // We changed this logic so it only happens after MISSION START
+  // Syncronize your active panels states
   debugPrintln("Initializing Panel states....");
   initializePanels();
 
+  // Initializes your LEDs / Displays etc.
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
   
+  // When TEST_LEDS is active device enters a menu selection to test LEDs individually.
   #if TEST_LEDS
     printLEDMenu();
     handleLEDSelection();
     debugPrintln("Exiting LED selection menu. Continuing execution...");
   #endif 
 
+  // Uses a header object derived from dcsbios_data.json (created by a python script) to simulate DCS traffic
   #if IS_REPLAY
   // Begin simulated loop
   DcsbiosProtocolReplay();
   #endif
 
-  // If we are not debugging we turn it off.
   if(DEBUG) {
-    enablePCA9555Logging(1);
     debugPrintln("Device is now ready! (DEBUG ENABLED)");
   }
   else {
-    // Ready to go!
     debugPrintln("Device is now ready!");
   }
   debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
+
+  // Get a current memory usage snapshot
+  debugPrintf("Free heap: %u, Largest block: %u, Frag: %.1f%%\n",
+  ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT),
+  100.0 * (1.0 - (heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT) / (float)ESP.getFreeHeap())));
 }
 
 // Arduino Loop Routine
@@ -177,21 +196,29 @@ void loop() {
   
   HIDManager_loop(); 
 
+  // Performance Profiling using beginProfiling("name") -> endProfiling("name") but only when DEBUG_PERFORMANCE  
   #if DEBUG_PERFORMANCE
     beginProfiling("Main Loop");
   #endif
 
   // Shadow buffer implementation for Caution Advisory to guarantee row-coherent updates 
-  // Solves problem with matrix scanning and partial row writes
+  // Solves problem with matrix scanning and partial row writes for GN1640 displays (e.g Caution Advisory)
   if (hasCA) GN1640_tick();
 
+  // Button sampling for the annunciators
   if (hasLA) LeftAnnunciator_loop();
   if (hasRA) RightAnnunciator_loop();
 
+  // Axis and button sampling for IRCool panel 
   if (hasIR) IRCool_loop();  
+
+  // Axis and button sampling for ECM Panel
   if (hasECM) ECM_loop();
+
+  // Axis and button sampling for Master ARM panel 
   if (hasMasterARM) MasterARM_loop();
 
+  // Only when DEBUG is enabled we scan port/bit/position when the user clicks/flips switches on a PCA9555 detected device 
   if (isPCA9555LoggingEnabled()) {
     if (hasBrain) {
         byte p0, p1;
@@ -207,10 +234,12 @@ void loop() {
     }
   }
 
+  // All profiling blocks REQUIRE we close them
   #if DEBUG_PERFORMANCE
   endProfiling("Main Loop");
   #endif
 
+  // If you are profiling in a self contained block outside of the main loop, use perfMonitorUpdate() to simulate iterations.
   #if DEBUG_PERFORMANCE
   perfMonitorUpdate();
   #endif

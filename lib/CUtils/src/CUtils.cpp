@@ -59,6 +59,60 @@ PanelID getPanelID(uint8_t address) {
   }
 }
 
+#define MAX_DEVICES 10
+
+struct I2CDeviceInfo {
+  uint8_t address;
+  const char* label;
+};
+
+I2CDeviceInfo discoveredDevices[MAX_DEVICES];
+uint8_t discoveredDeviceCount = 0;
+
+
+void scanConnectedPanels() {
+  discoveredDeviceCount = 0;
+  delay(500); // PCA wake-up time
+
+  for (uint8_t addr = 0x03; addr <= 0x77; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0 && discoveredDeviceCount < MAX_DEVICES) {
+      const char* label = nullptr;
+      switch (getPanelID(addr)) {
+        case PanelID::ECM:    label = "ECM Panel"; break;
+        case PanelID::BRAIN:  label = "Brain / IRCool Panel"; break;
+        case PanelID::ARM:    label = "Master Arm Panel"; break;
+        default:              label = "Unknown Panel"; break;
+      }
+      discoveredDevices[discoveredDeviceCount++] = { addr, label };
+    }
+  }
+}
+
+void printDiscoveredPanels() {
+  if (discoveredDeviceCount == 0) {
+    debugPrintln("No I2C devices found.");
+    return;
+  }
+
+  debugPrintln("\n🔎 === Discovered I2C Devices ===");
+  debugPrintln("📋 Address    | Device Description");
+  debugPrintln("──────────────|─────────────────────────────");
+
+  for (uint8_t i = 0; i < discoveredDeviceCount; ++i) {
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "📡 0x%02X       | %s", 
+             discoveredDevices[i].address, 
+             discoveredDevices[i].label);
+    debugPrintln(buffer);
+  }
+
+  debugPrintln("────────────────────────────────────────────\n");
+}
+
+
+/*
+
 std::map<uint8_t, String> discoveredDevices;
 // Scans the I2C bus and detects connected panels, storing results in map
 
@@ -115,29 +169,6 @@ void printDiscoveredPanels() {
   debugPrintln("────────────────────────────────────────────\n");
 }
 
-
-/*
-// Prints a formatted list of discovered devices
-void printDiscoveredPanels() {
-  if (discoveredDevices.empty()) {
-    debugPrintln("No I2C devices found.");
-    return;
-  }
-
-  debugPrintln("\n=== Discovered I2C Devices ===");
-  debugPrintln("Address    | Device Description");
-  debugPrintln("-----------|------------------");
-
-  for (auto const& device : discoveredDevices) {
-    debugPrint("0x");
-    if (device.first < 0x10) debugPrint("0");
-    debugPrintf("%02X", device.first);
-    int spaces = 11 - 4; // "0xNN" is 4 chars
-    for (int i = 0; i < spaces; i++) debugPrint(" ");
-    debugPrintf("%s\n", device.second.c_str());
-  }
-  debugPrintln("============================\n");
-}
 */
 
 // *****************************************************

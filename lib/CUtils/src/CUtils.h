@@ -100,7 +100,6 @@ static uint8_t PCA9555_cachedPortStates[256][2] = {0}; // Cache PCA9555 output p
 void PCA9555_autoInitFromLEDMap(uint8_t address);
 void PCA9555_initAsOutput(uint8_t address, uint8_t port0_output_mask, uint8_t port1_output_mask);
 void logExpanderState(uint8_t p0, uint8_t p1);
-bool isPCA9555LoggingEnabled();
 bool isPCA9555LoggingEnabled(); // Used for PCA Logging
 void enablePCA9555Logging(bool enable);
 void logPCA9555State(uint8_t address, byte port0, byte port1);

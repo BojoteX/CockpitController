@@ -1,24 +1,24 @@
 #pragma once
+
 #include <cstdint>
-#include <WString.h>
 
-// Initialize HID device and descriptors
+// ───── Initialization / Main Loop ─────
 void HIDManager_begin();
-
-// Anything we need from HIDManager to execute during the main loop
 void HIDManager_loop();
 
-// Set RX axis (0–4095)
+// ───── Axis Input ─────
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin);
 
-// Named button setter (handles exclusivity and optional defer)
-void HIDManager_setNamedButton(const String& name, bool deferSend = false, bool pressed = true);
+// ───── Named Button State Setters (zero heap) ─────
+void HIDManager_setNamedButton(const char* name, bool deferSend = false, bool pressed = true);
+void HIDManager_setToggleNamedButton(const char* name, bool deferSend = false);
+void HIDManager_toggleIfPressed(bool isPressed, const char* label, bool deferSend = false);
 
-// Apply all deferred state changes
+// ───── Guarded Helpers ─────
+void HIDManager_handleGuardedToggle(bool isPressed, const char* switchLabel, const char* coverLabel, const char* fallbackLabel = nullptr, bool deferSend = false);
+void HIDManager_handleGuardedMomentary(bool isPressed, const char* buttonLabel, const char* coverLabel, bool deferSend = false);
+
+// ───── Utility / Maintenance ─────
 void HIDManager_commitDeferredReport();
-
-// Polling logic
 bool shouldPollMs(unsigned long &lastPoll);
-
-// Makes sure our status is always seen by windows
 void HIDManager_keepAlive();

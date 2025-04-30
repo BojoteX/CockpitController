@@ -38,18 +38,49 @@ target_objects = {
     'APU Fire Warning Extinguisher Light'
 }
 
+# ——— HELPERS ———
+def is_prime(n):
+    if n < 2: return False
+    if n % 2 == 0: return n == 2
+    for i in range(3, int(n**0.5)+1, 2):
+        if n % i == 0: return False
+    return True
+
+def next_prime(n):
+    while not is_prime(n):
+        n += 1
+    return n
+
+def djb2_hash(s, mod):
+    h = 5381
+    for c in s:
+        h = ((h << 5) + h) + ord(c)
+    return h % mod
+
 # -------- LOAD JSON -------- You need to load the Hornet Json file in order to generate the file.
 with open(JSON_FILE, encoding='utf-8') as f:
     data = json.load(f)
 
 # -------- BUILD OUTPUT_ENTRIES (filtered) -------- THE LOGIC HERE IS SACRED, YOU DO NOT TOUCH NOT EVEN A COMMENT
+control_type_map = {
+    'led': 'CT_LED',
+    'limited_dial': 'CT_ANALOG',
+    'analog_gauge': 'CT_ANALOG',
+    'selector': 'CT_SELECTOR',
+    'toggle_switch': 'CT_SELECTOR',
+    'action': 'CT_SELECTOR',
+    'emergency_parking_brake': 'CT_SELECTOR',
+    'display': 'CT_DISPLAY',
+    'metadata': 'CT_METADATA'
+}
+
 output_entries = []
 for panel, controls in data.items():
     if not PROCESS_ALL and panel not in target_objects:
         continue
     for key, item in controls.items():
-        ctype = item.get('control_type','').lower().strip()
-        if ctype not in ('led','limited_dial','analog_gauge'):
+        ctype_raw = item.get('control_type','').lower().strip()
+        if ctype_raw not in control_type_map:
             continue
         outs = item.get('outputs', [])
         if not outs:
@@ -62,7 +93,8 @@ for panel, controls in data.items():
             'addr':      out['address'],
             'mask':      out['mask'],
             'shift':     out['shift_by'],
-            'max_value': out.get('max_value', 1)
+            'max_value': out.get('max_value', 1),
+            'controlType': control_type_map[ctype_raw]
         })
 
 # -------- BUILD SELECTOR_ENTRIES (filtered) -------- THE LOGIC HERE IS SACRED, YOU DO NOT TOUCH NOT EVEN A COMMENT
@@ -141,28 +173,107 @@ for panel, controls in data.items():
             else:
                 selector_entries.append((f"{ident}_{clean}", ident, i, ctype, 0))
 
+# -------- BUILD TRACKED STATES (toggle + covers) --------
+
+tracked_labels = set()
+
+# 1. Covers: selector labels containing "_COVER"
+for full, cmd, val, ct, grp in selector_entries:
+    if "_COVER" in full:
+        tracked_labels.add(full)
+
+# 2. Toggles: momentary inputs where oride_label matches a CT_SELECTOR output
+output_selector_labels = {e['label'] for e in output_entries if e['controlType'] == 'CT_SELECTOR'}
+for full, cmd, val, ct, grp in selector_entries:
+    if ct == "momentary" and cmd in output_selector_labels:
+        tracked_labels.add(cmd)
+
+# 3. Sort for stability
+tracked_labels = sorted(tracked_labels)
+
+
 # -------- WRITE HEADER FOR OUTPUT AND SELECTORS -------- 
 
 with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
     f.write("// Auto-generated DCSBIOS Bridge Data (JSON‑only) - DO NOT EDIT\n")
-    f.write("#pragma once\n\n#include <stdint.h>\n#include <vector>\n#include <unordered_map>\n\n")
+    f.write("#pragma once\n\n#include <stdint.h>\n\n")
 
     # Outputs
-    f.write("struct DcsOutputEntry { uint16_t addr, mask; uint8_t shift; uint16_t max_value; const char* label; };\n")
+    f.write("enum ControlType : uint8_t {\n")
+    f.write("  CT_LED,\n  CT_ANALOG,\n  CT_SELECTOR,\n  CT_DISPLAY,\n  CT_METADATA\n};\n\n")
+
+    f.write("struct DcsOutputEntry { uint16_t addr, mask; uint8_t shift; uint16_t max_value; const char* label; ControlType controlType; };\n")
     f.write("static const DcsOutputEntry DcsOutputTable[] = {\n")
     for e in output_entries:
-        f.write(f'    {{0x{e["addr"]:04X},0x{e["mask"]:04X},{e["shift"]},{e["max_value"]},"{e["label"]}"}},\n')
+        f.write(f'    {{0x{e["addr"]:04X},0x{e["mask"]:04X},{e["shift"]},{e["max_value"]},"{e["label"]}",{e["controlType"]}}},\n')
     f.write("};\nstatic const size_t DcsOutputTableSize = sizeof(DcsOutputTable)/sizeof(DcsOutputTable[0]);\n\n")
 
-    # Address→entries map
+    # Address→entries static flat table
     addr_map = defaultdict(list)
     for i, e in enumerate(output_entries):
         addr_map[e['addr']].append(i)
-    f.write("static const std::unordered_map<uint16_t,std::vector<const DcsOutputEntry*>> addressToEntries = {\n")
-    for addr, idxs in addr_map.items():
-        ptrs = ','.join(f"&DcsOutputTable[{i}]" for i in idxs)
-        f.write(f'    {{0x{addr:04X},{{{ptrs}}}}},\n')
+
+    f.write("// Static flat address-to-output entry lookup\n")
+    f.write("struct AddressEntry {\n")
+    f.write("  uint16_t addr;\n")
+
+    # dynamically determine max entry count per address
+    max_entries_per_addr = max(len(idxs) for idxs in addr_map.values())
+    f.write(f"  const DcsOutputEntry* entries[{max_entries_per_addr}]; // max entries per address\n")
+    f.write("  uint8_t count;\n")
     f.write("};\n\n")
+
+    f.write("static const AddressEntry dcsAddressTable[] = {\n")
+    for addr, idxs in addr_map.items():
+        ptrs = ', '.join(f"&DcsOutputTable[{i}]" for i in idxs)
+        count = len(idxs)
+        f.write(f"  {{ 0x{addr:04X}, {{ {ptrs} }}, {count} }},\n")
+    f.write("};\n\n")
+
+    # Generate hash table for address → AddressEntry*
+    address_entries = list(addr_map.items())
+    desired_addr_count = len(address_entries) * 2
+    ADDR_TABLE_SIZE = next_prime(max(desired_addr_count, 53))
+
+    addr_hash_table = ["{0xFFFF, nullptr}"] * ADDR_TABLE_SIZE
+    for idx, (addr, _) in enumerate(address_entries):
+        h = addr % ADDR_TABLE_SIZE
+        for probe in range(ADDR_TABLE_SIZE):
+            if addr_hash_table[h] == "{0xFFFF, nullptr}":
+                addr_hash_table[h] = f"{{ 0x{addr:04X}, &dcsAddressTable[{idx}] }}"
+                break
+            h = (h + 1) % ADDR_TABLE_SIZE
+        else:
+            print(f"❌ Address hash table full! ADDR_TABLE_SIZE={ADDR_TABLE_SIZE} too small", file=sys.stderr)
+            sys.exit(1)
+
+    # Emit hash table and lookup
+    f.write("// Address hash entry\n")
+    f.write("struct DcsAddressHashEntry {\n")
+    f.write("  uint16_t addr;\n")
+    f.write("  const AddressEntry* entry;\n")
+    f.write("};\n\n")
+
+    f.write(f"static const DcsAddressHashEntry dcsAddressHashTable[{ADDR_TABLE_SIZE}] = {{\n")
+    for entry in addr_hash_table:
+        f.write(f"  {entry},\n")
+    f.write("};\n\n")
+
+    f.write("// Simple address hash (modulo)\n")
+    f.write("constexpr uint16_t addrHash(uint16_t addr) {\n")
+    f.write(f"  return addr % {ADDR_TABLE_SIZE};\n")
+    f.write("}\n\n")
+
+    f.write("inline const AddressEntry* findDcsOutputEntries(uint16_t addr) {\n")
+    f.write(f"  uint16_t startH = addrHash(addr);\n")
+    f.write(f"  for (uint16_t i = 0; i < {ADDR_TABLE_SIZE}; ++i) {{\n")
+    f.write(f"    uint16_t idx = (startH + i >= {ADDR_TABLE_SIZE}) ? (startH + i - {ADDR_TABLE_SIZE}) : (startH + i);\n")
+    f.write("    const auto& entry = dcsAddressHashTable[idx];\n")
+    f.write("    if (entry.addr == 0xFFFF) continue;\n")
+    f.write("    if (entry.addr == addr) return entry.entry;\n")
+    f.write("  }\n")
+    f.write("  return nullptr;\n")
+    f.write("}\n\n")
 
     # Selectors: add group field
     f.write("struct SelectorEntry { const char* label; const char* dcsCommand; uint16_t value; const char* controlType; uint16_t group; };\n")
@@ -170,6 +281,13 @@ with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
     for full, cmd, val, ct, grp in selector_entries:
         f.write(f'    {{ "{full}","{cmd}",{val},"{ct}",{grp} }},\n')
     f.write("};\nstatic const size_t SelectorMapSize = sizeof(SelectorMap)/sizeof(SelectorMap[0]);\n")
+
+    f.write("\n// Tracked toggle & cover states\n")
+    f.write("TrackedStateEntry trackedStates[] = {\n")
+    for label in tracked_labels:
+        f.write(f'    {{ "{label}", false }},\n')
+    f.write("};\n")
+    f.write("const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);\n")
 
 print(f"[✓] Generated {OUTPUT_HEADER} with "
       f"{len(output_entries)} outputs,  "
@@ -225,6 +343,7 @@ for full, cmd, val, ct, grp in selector_entries:
 
 # 3) write out merged list
 with open(INPUT_REFERENCE, "w", encoding="utf-8") as f2:
+    input_labels = [e[0] for e in merged]
     f2.write("// THIS FILE IS AUTO-GENERATED; ONLY EDIT INDIVIDUAL RECORDS, DO NOT ADD OR DELETE THEM HERE\n")
     f2.write("#pragma once\n\n")
     f2.write("struct InputMapping {\n")
@@ -255,28 +374,51 @@ with open(INPUT_REFERENCE, "w", encoding="utf-8") as f2:
     f2.write("};\n")
     f2.write("static const size_t InputMappingSize = sizeof(InputMappings)/sizeof(InputMappings[0]);\n\n")
 
+    # 4) Generate static hash table for InputMappings[]
+    desired = len(input_labels) * 2
+    INPUT_TABLE_SIZE = next_prime(max(desired, 53))
+
+    input_hash_table = ["{nullptr, nullptr}"] * INPUT_TABLE_SIZE
+
+    for idx, label in enumerate(input_labels):
+        h = djb2_hash(label, INPUT_TABLE_SIZE)
+        for probe in range(INPUT_TABLE_SIZE):
+            if input_hash_table[h] == "{nullptr, nullptr}":
+                input_hash_table[h] = f'{{"{label}", &InputMappings[{idx}]}}'
+                break
+            h = (h + 1) % INPUT_TABLE_SIZE
+        else:
+            print(f"❌ Input hash table full! TABLE_SIZE={INPUT_TABLE_SIZE} too small", file=sys.stderr)
+            sys.exit(1)
+
+    f2.write(f"\n// Static hash lookup table for InputMappings[]\n")
+    f2.write("struct InputHashEntry { const char* label; const InputMapping* mapping; };\n")
+    f2.write(f"static const InputHashEntry inputHashTable[{INPUT_TABLE_SIZE}] = {{\n")
+    for entry in input_hash_table:
+        f2.write(f"  {entry},\n")
+    f2.write("};\n\n")
+
+    f2.write("// DJB2 hash function for input labels\n")
+    f2.write("constexpr uint16_t inputHash(const char* str) {\n")
+    f2.write("  uint16_t hash = 5381;\n")
+    f2.write("  while (*str) { hash = ((hash << 5) + hash) + *str++; }\n")
+    f2.write("  return hash;\n")
+    f2.write("}\n\n")
+
+    f2.write("inline const InputMapping* findInputByLabel(const char* label) {\n")
+    f2.write(f"  uint16_t startH = inputHash(label) % {INPUT_TABLE_SIZE};\n")
+    f2.write(f"  for (uint16_t i = 0; i < {INPUT_TABLE_SIZE}; ++i) {{\n")
+    f2.write(f"    uint16_t idx = (startH + i >= {INPUT_TABLE_SIZE}) ? (startH + i - {INPUT_TABLE_SIZE}) : (startH + i);\n")
+    f2.write("    const auto& entry = inputHashTable[idx];\n")
+    f2.write("    if (!entry.label) continue;\n")
+    f2.write("    if (strcmp(entry.label, label) == 0) return entry.mapping;\n")
+    f2.write("  }\n")
+    f2.write("  return nullptr;\n")
+    f2.write("}\n")
+
 print(f"[✓] Generated {INPUT_REFERENCE} with {len(merged)} entries.")
 
 # --------------------------- Generate our LEDMappings.h file -----------------------------------------------
-
-# ——— HELPERS ———
-def is_prime(n):
-    if n < 2: return False
-    if n % 2 == 0: return n == 2
-    for i in range(3, int(n**0.5)+1, 2):
-        if n % i == 0: return False
-    return True
-
-def next_prime(n):
-    while not is_prime(n):
-        n += 1
-    return n
-
-def djb2_hash(s, mod):
-    h = 5381
-    for c in s:
-        h = ((h << 5) + h) + ord(c)
-    return h % mod
 
 def generate_comment(device, info_type, info_values):
     info = [x.strip() for x in info_values.split(",")]
@@ -315,7 +457,8 @@ if os.path.exists(LED_REFERENCE):
             "activeLow":   d["activeLow"],
         }
 
-# ——— 2) PARSE DcsOutputTable for all labels ———
+
+# ——— 2) PARSE DcsOutputTable for all labels (only CT_LED, CT_ANALOG) ———
 if not os.path.exists(OUTPUT_HEADER):
     print(f"❌ Cannot find `{OUTPUT_HEADER}` – adjust OUTPUT_HEADER path.", file=sys.stderr)
     sys.exit(1)
@@ -324,15 +467,21 @@ with open(OUTPUT_HEADER, "r", encoding="utf-8") as f:
     dcs = f.read()
 
 dcs_re = re.compile(
-    r'\{\s*0x[0-9A-Fa-f]+\s*,\s*0x[0-9A-Fa-f]+\s*,\s*\d+\s*,\s*\d+\s*,\s*"([^"]+)"\s*\}'
+    r'\{\s*0x[0-9A-Fa-f]+\s*,\s*0x[0-9A-Fa-f]+\s*,\s*\d+\s*,\s*\d+\s*,\s*"([^"]+)"\s*,\s*(CT_\w+)\s*\}'
 )
-labels = [m.group(1) for m in dcs_re.finditer(dcs)]
+
+labels = []
+for m in dcs_re.finditer(dcs):
+    label = m.group(1)
+    control_type = m.group(2)
+    if control_type in ("CT_LED", "CT_ANALOG"):
+        labels.append(label)
 
 # Duplicate label detection
 if len(labels) != len(set(labels)):
     print("⚠️ WARNING: Duplicate labels detected in DCS table!", file=sys.stderr)
 
-print(f"✅ Found {len(labels)} labels in DcsOutputTable ({OUTPUT_HEADER})")
+print(f"✅ Found {len(labels)} LED/Analog labels in DcsOutputTable ({OUTPUT_HEADER})")
 
 # ——— 3) Compute table size dynamically (load ≤ 50%) ———
 desired = len(labels) * 2

@@ -1,6 +1,3 @@
-#ifndef DEBUGPRINT_H
-#define DEBUGPRINT_H
-
 #pragma once
 // DebugPrint.h - Unified debug interface
 
@@ -19,5 +16,3 @@ void sendDebug(const char* msg);
 // API for Serial debug
 void serialDebugPrint(const char* msg);
 void serialDebugPrintln(const char* msg);
-
-#endif // DEBUGPRINT_H

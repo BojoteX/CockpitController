@@ -1,6 +1,6 @@
 #define DCSBIOS_DISABLE_SERVO
 #define DCSBIOS_ESP32_CDC_SERIAL
-#include <DcsBios.h>
+#include "lib/DCS-BIOS/src/DcsBios.h"
 #include "src/Globals.h"
 #include "src/DCSBIOSBridge.h"
 #include "src/LABELS/DCSBIOSBridgeData.h"
@@ -14,14 +14,8 @@
 #include "src/WiFiDebug.h"
 #endif
 
-// Used to track cockpit cover states for the hornet.
-namespace cover {
-    volatile bool gain_switch      = false;
-    volatile bool gen_tie          = false;
-    volatile bool left_eng_fire    = false;
-    volatile bool right_eng_fire   = false;
-    volatile bool spin_recovery    = false;
-}
+// Force compilation of all DCS-BIOS internals (Arduino won't compile .cpp's inside lib automatically)
+#include "lib/DCS-BIOS/src/internal/Protocol.cpp"
 
 struct PendingUpdate {
     const char* label;
@@ -32,11 +26,10 @@ struct PendingUpdate {
 // ——— Configuration ———
 #define MAX_PENDING_UPDATES 220
 
-// In your globals / above DcsBiosSniffer definition:
+// Used for reliably detecting an active stream and when it goes up or down.
 static constexpr unsigned long STREAM_TIMEOUT_MS = 500;  // ms without writes → consider dead
 
-// —————————————————————————————————————————————————————————————
-// Extend your DcsBiosSniffer:
+// DcsBiosSniffer Listener (Hornet FA-18C)
 class DcsBiosSniffer : public DcsBios::ExportStreamListener {
 public:
     DcsBiosSniffer()
@@ -47,7 +40,7 @@ public:
         _streamUp(false)
     {}
 
-    // Called on every DCS-BIOS write
+    /*
     void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
         unsigned long now = millis();
 
@@ -58,204 +51,174 @@ public:
             onStreamUp();    // one-time “stream came up” hook
         }
 
-        // 2) Your existing listener code
-        #if DEBUG_PERFORMANCE
-        beginProfiling("Listener");
-        #endif
-
         static std::unordered_map<const char*, uint16_t> prev;
         auto it = addressToEntries.find(addr);
         if (it == addressToEntries.end()) {
-            #if DEBUG_PERFORMANCE
-            endProfiling("Listener");
-            #endif
             return;
         }
+
+        // 2) Dispatch per control type
         for (const DcsOutputEntry* entry : it->second) {
             uint16_t val = (value & entry->mask) >> entry->shift;
+
             if (prev[entry->label] == val) continue;
             prev[entry->label] = val;
-            if (pendingUpdateCount < MAX_PENDING_UPDATES) {
-                pendingUpdates[pendingUpdateCount++] = {entry->label, val, entry->max_value};
-            } else {
-                pendingUpdateOverflow++;
+
+            switch (entry->controlType) {
+                case CT_LED:
+                case CT_ANALOG:
+                    if (pendingUpdateCount < MAX_PENDING_UPDATES) {
+                        pendingUpdates[pendingUpdateCount++] = {entry->label, val, entry->max_value};
+                    } else {
+                        pendingUpdateOverflow++;
+                    }
+                    break;
+
+                case CT_SELECTOR:
+                    onSelectorChange(entry->label, val);
+                    break;
+
+                case CT_DISPLAY:
+                    // Placeholder — will later call onDisplayChange(entry->label, val);
+                    break;
+
+                case CT_METADATA:
+                    // Placeholder — will later call onMetadataChange(entry->label, val);
+                    break;
             }
         }
-
-        #if DEBUG_PERFORMANCE
-        endProfiling("Listener");
-        #endif
     }
+    */
+    
+    void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
+        unsigned long now = millis();
 
-    // Called at end of each DCS-BIOS frame (after all writes)
-    void onConsistentData() override {
-        // 1) Timeout detection: if we’ve gone too long without a write
-        if (_streamUp && (millis() - _lastWriteMs) >= STREAM_TIMEOUT_MS) {
-            _streamUp = false;
-            onStreamDown();  // one-time “stream went down” hook
+        // 1) Stream-health logic
+        _lastWriteMs = now;
+        if (!_streamUp) {
+            _streamUp = true;
+            onStreamUp();    // one-time “stream came up” hook
         }
 
-        // 2) Your existing pending-updates flush
+        static uint16_t prevValues[DcsOutputTableSize] = {0};
+
+        const AddressEntry* ae = findDcsOutputEntries(addr);
+        if (!ae) return;
+
+        // 2) Dispatch per control type
+        for (uint8_t i = 0; i < ae->count; ++i) {
+            const DcsOutputEntry* entry = ae->entries[i];
+            uint16_t val = (value & entry->mask) >> entry->shift;
+
+            size_t index = entry - DcsOutputTable;
+            if (index >= DcsOutputTableSize || prevValues[index] == val) continue;
+            prevValues[index] = val;
+
+            switch (entry->controlType) {
+                case CT_LED:
+                case CT_ANALOG:
+                    if (pendingUpdateCount < MAX_PENDING_UPDATES) {
+                        pendingUpdates[pendingUpdateCount++] = {entry->label, val, entry->max_value};
+                    } else {
+                        pendingUpdateOverflow++;
+                    }
+                    break;
+
+                case CT_SELECTOR:
+                    onSelectorChange(entry->label, val);
+                    break;
+
+                case CT_DISPLAY:
+                    // Placeholder — will later call onDisplayChange(entry->label, val);
+                    break;
+
+                case CT_METADATA:
+                    // Placeholder — will later call onMetadataChange(entry->label, val);
+                    break;
+            }
+        }
+    }
+
+    void onConsistentData() override {
+        if (_streamUp && (millis() - _lastWriteMs) >= STREAM_TIMEOUT_MS) {
+            _streamUp = false;
+            onStreamDown();
+        }
+
+        // Only flushing LED/Analog pending updates for now
         for (uint16_t i = 0; i < pendingUpdateCount; ++i) {
             const PendingUpdate& u = pendingUpdates[i];
             onLedChange(u.label, u.value, u.max_value);
         }
         pendingUpdateCount = 0;
+
         if (pendingUpdateOverflow > 0) {
             debugPrintf("[WARNING] %u LED updates dropped\n", pendingUpdateOverflow);
             pendingUpdateOverflow = 0;
         }
     }
 
-    // --- new API to check stream health from your main loop ---
     bool isStreamAlive() const {
         return (millis() - _lastWriteMs) < STREAM_TIMEOUT_MS;
     }
 
 protected:
-    // Override these if you want to react ONCE when state changes:
     virtual void onStreamUp()   { debugPrintln("[STREAM] UP"); }
-    virtual void onStreamDown(){ debugPrintln("[STREAM] DOWN"); }
+    virtual void onStreamDown() { debugPrintln("[STREAM] DOWN"); }
 
 private:
     PendingUpdate    pendingUpdates[MAX_PENDING_UPDATES];
     uint16_t         pendingUpdateCount;
     uint32_t         pendingUpdateOverflow;
-
-    // ——— new members for health checking ———
     unsigned long    _lastWriteMs;
     bool             _streamUp;
 };
-DcsBiosSniffer mySniffer;  // still your global instance
-
-/*
-class DcsBiosSniffer : public DcsBios::ExportStreamListener {
-public:
-    DcsBiosSniffer() : DcsBios::ExportStreamListener(0x7400, 0x77FF), pendingUpdateCount(0), pendingUpdateOverflow(0) {}
-
-    inline uint32_t dcsHash(uint16_t addr, uint16_t mask, uint8_t shift) {
-        return ((uint32_t)addr << 16) ^ (uint32_t)mask ^ ((uint32_t)shift << 1);
-    }
-
-    void onDcsBiosWrite(unsigned int addr, unsigned int value) override {
-        #if DEBUG_PERFORMANCE
-        beginProfiling("Listener");
-        #endif
-
-        static std::unordered_map<const char*, uint16_t> prev;
-        auto it = addressToEntries.find(addr);
-        if (it == addressToEntries.end()) {
-            #if DEBUG_PERFORMANCE
-            endProfiling("Listener");
-            #endif
-            return;
-        }
-
-        for (const DcsOutputEntry* entry : it->second) {
-            uint16_t val = (value & entry->mask) >> entry->shift;
-            if (prev[entry->label] == val) continue;
-            prev[entry->label] = val;
-
-            if (pendingUpdateCount < MAX_PENDING_UPDATES) {
-                pendingUpdates[pendingUpdateCount++] = {entry->label, val, entry->max_value};
-            } else {
-                pendingUpdateOverflow++; // 🔥 Log overflow event
-            }
-        }
-
-        #if DEBUG_PERFORMANCE
-        endProfiling("Listener");
-        #endif
-    }
-
-    void onConsistentData() override {
-        for (uint16_t i = 0; i < pendingUpdateCount; ++i) {
-            const PendingUpdate& u = pendingUpdates[i];
-            onLedChange(u.label, u.value, u.max_value);
-        }
-        pendingUpdateCount = 0; // Clear buffer for next frame
-
-        // Optional: Alert if we dropped any pending updates
-        if (pendingUpdateOverflow > 0) {
-            char buf[128];
-            snprintf(buf, sizeof(buf), "[WARNING] ⚠️ %lu pending updates were DROPPED due to overflow!", pendingUpdateOverflow);
-            #if VERBOSE_PERFORMANCE_ONLY
-                wifiDebugPrint(buf);
-            #else
-                debugPrint(buf);
-            #endif
-            pendingUpdateOverflow = 0; // reset counter after reporting
-        }
-    }
-
-private:
-    PendingUpdate pendingUpdates[MAX_PENDING_UPDATES];
-    uint16_t pendingUpdateCount;
-    uint32_t pendingUpdateOverflow;
-};
 DcsBiosSniffer mySniffer;
-*/
 
-// This is to determine mission start and properly initialize cockpit and syncronize with our hardware.
-void onAircraftName(char* str) {
-
-    char buf[128];
-    if (str != nullptr && str[0] != '\0') {
-        snprintf(buf, sizeof(buf), "[MISSION START] %s.\n", str);
-
-        #if VERBOSE_PERFORMANCE_ONLY
-            wifiDebugPrintf("[MISSION START] %s\n", str);
-        #else
-            debugPrintf("[MISSION START] %s\n", str);
-        #endif
-
-        // Initialize panel switches
-        initializePanels();
+int trackedIndexFor(const char* label) {
+    for (size_t i = 0; i < trackedStatesCount; ++i) {
+        if (trackedStates[i].label == label || strcmp(trackedStates[i].label, label) == 0) {
+            return static_cast<int>(i);
+        }
     }
-    else {
-        #if VERBOSE_PERFORMANCE_ONLY
-            wifiDebugPrintln("[MISSION STOP]");
-        #else
-            debugPrintln("[MISSION STOP]");
-        #endif
+    return -1;
+}
+
+bool getTrackedState(const char* label) {
+    int index = trackedIndexFor(label);
+    return (index >= 0) ? trackedStates[index].value : false;
+}
+
+void setTrackedState(const char* label, bool value) {
+    int index = trackedIndexFor(label);
+    if (index >= 0) trackedStates[index].value = value;
+}
+
+// ——— Corrected Mission Handler ———
+void onAircraftName(char* str) {
+    if (str != nullptr && str[0] != '\0') {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "[MISSION START] %s.\n", str);
+        debugPrintf("%s", buf);
+
+        if (mySniffer.isStreamAlive()) initializePanels();
+    } else {
+        debugPrintln("[MISSION STOP]");
     }
 }
+
 // Get MetaData to init cockpit state
 DcsBios::StringBuffer<24> aicraftName(0x0000, onAircraftName); // Its safe to do StringBuffer and Integer buffer for addresses OUTSIDE our listener, we do so for MetaData
 
-/*
-// Cover state callbacks (bitmask logic made explicit and consistent)
-void onGainSwitchCover(unsigned int val)     { cover::gain_switch     = (val & 0x8000) != 0; }
-void onGenTieCover(unsigned int val)         { cover::gen_tie         = (val & 0x1000) != 0; }
-void onLeftFireCover(unsigned int val)       { cover::left_eng_fire   = (val & 0x0100) != 0; }
-void onRightFireCover(unsigned int val)      { cover::right_eng_fire  = (val & 0x0040) != 0; }
-void onSpinRecoveryCover(unsigned int val)   { cover::spin_recovery   = (val & 0x1000) != 0; }
-
-// IntegerBuffers (addr, mask, shift, callback)
-DcsBios::IntegerBuffer gainSwitchCoverBuf    (0x74F4, 0x8000, 15, onGainSwitchCover);
-DcsBios::IntegerBuffer genTieCoverBuf        (0x74F2, 0x1000, 12, onGenTieCover);
-DcsBios::IntegerBuffer leftFireCoverBuf      (0x73F8, 0x0100,  8, onLeftFireCover);
-DcsBios::IntegerBuffer rightFireCoverBuf     (0x73FC, 0x0040,  6, onRightFireCover);
-DcsBios::IntegerBuffer spinRecoveryCoverBuf  (0x74FA, 0x1000, 12, onSpinRecoveryCover);
-*/
-
-//////////////////////////////////////////////////////////////////////////////////////
-//
-//          Example to check cover state
-//
-//          gain_switch
-//          gen_tie
-//          left_eng_fire
-//          right_eng_fire
-//          spin_recovery
-//
-//          if (cover::left_eng_fire) {
-//              sendDCSBIOSCommand("FIRE_EXT", 1);
-//          } else {
-//              debugPrintln("🔥 BLOCKED: FIRE_EXT — cover closed");
-//          }
-//
-/////////////////////////////////////////////////////////////////////////////////////
+// Frame counter for reference measure frame skips
+void onUpdateCounterChange(unsigned int value) {
+    uint8_t frameCounter = value & 0xFF;          // low byte
+    uint8_t frameSkipCounter = (value >> 8) & 0xFF; // high byte
+    // Used for debugging only
+    debugPrintf("Frame: %u | Skips: %u\n", frameCounter, frameSkipCounter);
+}
+// Activate only when debugging frame skips and checking frame counter
+// DcsBios::IntegerBuffer updateCounterBuffer(0xFFFE, 0xFFFF, 0, onUpdateCounterChange);
 
 void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
     if (max_value <= 1) {
@@ -281,7 +244,8 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
 }
 
 void onSelectorChange(const char* label, unsigned int value) {
-    // HIDManager_setNamedButton(label, false, value);
+    setTrackedState(label, value > 0);  // 🔒 This is now static table-backed
+    debugPrintf("[STATE UPDATE] %s = %s\n", label, value > 0 ? "ON/OPEN" : "OFF/CLOSED");
 }
 
 #if IS_REPLAY
@@ -364,6 +328,7 @@ void sendDCSBIOSCommand(const char* label, uint16_t value) {
     // The idea is that we'll NEVER call DcsBios::sendDcsBiosMessage without making sure it can receive our data
     if (tud_cdc_connected() || mySniffer.isStreamAlive()) {
         DcsBios::sendDcsBiosMessage(label, valueStr);
+        delay(10); // Experiment to see which value allows crazy transitions.
         debugPrintf("🛩️ DCS Command Sent: %s %s\n", label, valueStr);
         return;
     }

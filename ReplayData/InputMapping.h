@@ -51,3 +51,93 @@ static const InputMapping InputMappings[] = {
 };
 static const size_t InputMappingSize = sizeof(InputMappings)/sizeof(InputMappings[0]);
 
+
+// Static hash lookup table for InputMappings[]
+struct InputHashEntry { const char* label; const InputMapping* mapping; };
+static const InputHashEntry inputHashTable[67] = {
+  {nullptr, nullptr},
+  {"COCKKPIT_LIGHT_MODE_SW_NVG", &InputMappings[13]},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {"IR_COOL_SW_OFF", &InputMappings[22]},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {"ECM_MODE_SW_STBY", &InputMappings[10]},
+  {"AUX_REL_SW_NORM", &InputMappings[2]},
+  {"CMSD_JET_SEL_BTN", &InputMappings[6]},
+  {"LIGHTS_TEST_SW_TEST", &InputMappings[16]},
+  {"LIGHTS_TEST_SW_OFF", &InputMappings[17]},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {"APU_FIRE_BTN", &InputMappings[0]},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {"CMSD_DISPENSE_SW_OFF", &InputMappings[5]},
+  {"FIRE_EXT_BTN", &InputMappings[12]},
+  {"MASTER_ARM_SW_ARM", &InputMappings[26]},
+  {"COCKKPIT_LIGHT_MODE_SW_DAY", &InputMappings[15]},
+  {"SPIN_RECOVERY_COVER", &InputMappings[23]},
+  {"SPIN_RECOVERY_SW_RCVY", &InputMappings[24]},
+  {"MASTER_CAUTION_RESET_SW", &InputMappings[30]},
+  {"AUX_REL_SW_ENABLE", &InputMappings[1]},
+  {nullptr, nullptr},
+  {"CMSD_DISPENSE_SW_ON", &InputMappings[4]},
+  {nullptr, nullptr},
+  {"LEFT_FIRE_BTN_COVER", &InputMappings[19]},
+  {"ECM_MODE_SW_OFF", &InputMappings[11]},
+  {"MASTER_MODE_AA", &InputMappings[28]},
+  {nullptr, nullptr},
+  {"RIGHT_FIRE_BTN_COVER", &InputMappings[32]},
+  {"ECM_MODE_SW_XMIT", &InputMappings[7]},
+  {"MASTER_MODE_AG", &InputMappings[29]},
+  {"COCKKPIT_LIGHT_MODE_SW_NITE", &InputMappings[14]},
+  {"RIGHT_FIRE_BTN", &InputMappings[31]},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {"ECM_MODE_SW_REC", &InputMappings[8]},
+  {"IR_COOL_SW_ORIDE", &InputMappings[20]},
+  {"CMSD_DISPENSE_SW_BYPASS", &InputMappings[3]},
+  {"LEFT_FIRE_BTN", &InputMappings[18]},
+  {"SPIN_RECOVERY_SW_NORM", &InputMappings[25]},
+  {"MASTER_ARM_SW_SAFE", &InputMappings[27]},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {"ECM_MODE_SW_BIT", &InputMappings[9]},
+  {"IR_COOL_SW_NORM", &InputMappings[21]},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+  {nullptr, nullptr},
+};
+
+// DJB2 hash function for input labels
+constexpr uint16_t inputHash(const char* str) {
+  uint16_t hash = 5381;
+  while (*str) { hash = ((hash << 5) + hash) + *str++; }
+  return hash;
+}
+
+inline const InputMapping* findInputByLabel(const char* label) {
+  uint16_t startH = inputHash(label) % 67;
+  for (uint16_t i = 0; i < 67; ++i) {
+    uint16_t idx = (startH + i >= 67) ? (startH + i - 67) : (startH + i);
+    const auto& entry = inputHashTable[idx];
+    if (!entry.label) continue;
+    if (strcmp(entry.label, label) == 0) return entry.mapping;
+  }
+  return nullptr;
+}

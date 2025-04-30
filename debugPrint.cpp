@@ -21,7 +21,7 @@ bool debugToUDP      = false;
 void debugSetOutput(bool toSerial, bool toUDP) {
     debugToSerial = toSerial;
     debugToUDP    = toUDP;
-    debugPrintf("Debug to Serial is set to %s\nDebug to UDP is set to %s\n", debugToSerial ? "ON" : "OFF", debugToUDP ? "ON" : "OFF");
+    debugPrintf("Output to Serial is set to %s\nOutput to UDP is set to %s\n", debugToSerial ? "ON" : "OFF", debugToUDP ? "ON" : "OFF");
 }
 
 void debugPrint(const char* msg) {

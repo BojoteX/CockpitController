@@ -39,8 +39,9 @@ void ECM_init() {
     prevECMPort0 = port0;
     prevECMPort1 = port1;
 
-    // Momentary button (pressed = LOW)
-    HIDManager_setNamedButton("CMSD_JET_SEL_BTN", true, !bitRead(port0, JETT_SEL));
+    if (!bitRead(port0, JETT_SEL)) {
+      HIDManager_setToggleNamedButton("CMSD_JET_SEL_BTN", true); // deferSend = true
+    }
     
     // DISPENSER 3-pos group: OFF / BYPASS / ON (default)
     if (!bitRead(port0, DISPENSER_OFF))
@@ -86,10 +87,8 @@ void ECM_loop() {
   if (!readPCA9555(ECM_PCA_ADDR, port0, port1)) return;
 
   // JETT_SEL - Momentary press detection
-  bool currJettsel = bitRead(port0, JETT_SEL);
-  if (bitRead(prevECMPort0, JETT_SEL) != currJettsel) {
-    HIDManager_setNamedButton("CMSD_JET_SEL_BTN", false, !currJettsel);
-  }
+  bool currJettsel = !bitRead(port0, JETT_SEL); // Inverted logic: pressed = true
+  HIDManager_toggleIfPressed(currJettsel, "CMSD_JET_SEL_BTN");
 
   // DISPENSER 3-pos switch
   bool currDispBypass = bitRead(port0, DISPENSER_BYPASS);
