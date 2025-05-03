@@ -14,7 +14,6 @@
 // TEKCreations F/A-18C IR COOL Panel Firmware Logic
 // Author: Bojote
 
-#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/IRCoolPanel.h"
 #include "src/HIDManager.h"
@@ -35,12 +34,15 @@ enum Port1Bits {
 };
 
 void IRCool_init() {
-  delay(50);  // Ensure PCA is initialized
+  // delay(50);  // Ensure PCA is initialized
 
   byte port0, port1;
   if (readPCA9555(IRCOOL_PCA_ADDR, port0, port1)) {
     prevIRCPort0 = port0;
     prevIRCPort1 = port1;
+
+    // Analog input for HMD knob
+    HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
 
     // Preload guarded toggle state for SPIN switch
     bool currSpinPressed = !bitRead(port1, SPIN_RCVY);
@@ -66,13 +68,12 @@ void IRCool_init() {
     else
       HIDManager_setNamedButton("IR_COOL_SW_NORM", true);
 
-    // Analog input for HMD knob
-    HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
+    // Send deferred HID report
+    HIDManager_commitDeferredReport("IR Cool Panel");
 
-    HIDManager_commitDeferredReport();
-    debugPrintf("✅ Initialized PCA Panel 0X%02X\n", IRCOOL_PCA_ADDR);
+    debugPrintf("✅ Initialized IR Cool Panel\n", IRCOOL_PCA_ADDR);
   } else {
-    debugPrintf("❌ Could not initialize PCA Panel 0X%02X\n", IRCOOL_PCA_ADDR);
+    debugPrintf("❌ Could not initialize IR Cool Panel\n", IRCOOL_PCA_ADDR);
   }
 }
 

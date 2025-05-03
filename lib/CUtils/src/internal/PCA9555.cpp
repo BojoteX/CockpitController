@@ -145,6 +145,7 @@ void PCA9555_autoInitFromLEDMap(uint8_t addr) {
     Wire.endTransmission();
 }
 
+/*
 void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
     uint8_t dataToSend;
 
@@ -165,6 +166,30 @@ void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
     Wire.write(reg);
     Wire.write(dataToSend);
     Wire.endTransmission();
+}
+*/
+
+void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
+    uint8_t data0, data1;
+
+    // update the cache
+    if (state)
+        PCA9555_cachedPortStates[addr][port] |=  (1 << bit);
+    else
+        PCA9555_cachedPortStates[addr][port] &= ~(1 << bit);
+
+    data0 = PCA9555_cachedPortStates[addr][0];
+    data1 = PCA9555_cachedPortStates[addr][1];
+
+    // one-shot I²C write both ports
+    uint32_t t0 = micros();
+    Wire.beginTransmission(addr);
+      Wire.write(0x02);
+      Wire.write(data0);
+      Wire.write(data1);
+    Wire.endTransmission();
+    uint32_t dt = micros() - t0;
+    debugPrintf("PCA9555 raw I2C write: %u µs\n", dt);
 }
 
 void initPCA9555AsInput(uint8_t addr) {
@@ -220,7 +245,8 @@ bool readPCA9555(uint8_t address, byte &port0, byte &port1) {
 
     Wire.beginTransmission(address);
     Wire.write(0x00);  // Port 0 input register
-    if (Wire.endTransmission(false) == 0 && Wire.requestFrom(address, 2) == 2) {
+    // if (Wire.endTransmission(false) == 0 && Wire.requestFrom(address, 2) == 2) {
+	if (Wire.endTransmission(false) == 0 && Wire.requestFrom((uint8_t)address, (uint8_t)2) == 2) {
         tmpPort0 = Wire.read();
         tmpPort1 = Wire.read();
 

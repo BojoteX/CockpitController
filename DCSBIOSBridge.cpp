@@ -1,6 +1,3 @@
-#define DCSBIOS_DISABLE_SERVO
-#define DCSBIOS_ESP32_CDC_SERIAL
-#include "lib/DCS-BIOS/src/DcsBios.h"
 #include "src/Globals.h"
 #include "src/DCSBIOSBridge.h"
 #include "src/LABELS/DCSBIOSBridgeData.h"
@@ -14,7 +11,9 @@
 #include "src/WiFiDebug.h"
 #endif
 
-// Force compilation of all DCS-BIOS internals (Arduino won't compile .cpp's inside lib automatically)
+#define DCSBIOS_DISABLE_SERVO
+#define DCSBIOS_ESP32_CDC_SERIAL
+#include "lib/DCS-BIOS/src/DcsBios.h"
 #include "lib/DCS-BIOS/src/internal/Protocol.cpp"
 
 struct PendingUpdate {
@@ -252,6 +251,27 @@ void DcsbiosProtocolReplay() {
 }
 #endif
 
+void DCSBIOS_keepAlive() {
+    constexpr unsigned long DCS_KEEP_ALIVE_MS = DCS_KEEP_ALIVE_INTERVAL_MS;
+
+    static unsigned long lastPoll = 0;
+
+    unsigned long now = millis();
+    if (now - lastPoll < DCS_KEEPALIVE_POLL_INTERVAL) return;
+    lastPoll = now;
+
+    for (size_t i = 0; i < commandHistorySize; ++i) {
+        CommandHistoryEntry& entry = commandHistory[i];
+
+        if (!entry.isSelector) continue;
+
+        if (now - entry.lastSendTime >= DCS_KEEP_ALIVE_MS) {
+            sendDCSBIOSCommand(entry.label, entry.lastValue, true);
+            // debugPrintf("🔁 [DCS COMMAND KEEP-ALIVE] %s = %u\n", entry.label, entry.lastValue);
+        }
+    }
+}
+
 void DCSBIOS_init() {
 
     #if DEBUG_PERFORMANCE
@@ -262,21 +282,58 @@ void DCSBIOS_init() {
 }
 
 void DCSBIOS_loop() {
-  #if DEBUG_PERFORMANCE
+    #if DEBUG_PERFORMANCE
     beginProfiling("DCS-BIOS Loop");
-  #endif
+    #endif
 
-  DcsBios::loop();
+    DcsBios::loop();
 
-  #if DEBUG_PERFORMANCE
+    #if ENABLE_DCS_COMMAND_KEEPALIVE
+    DCSBIOS_keepAlive();
+    #endif
+
+    #if DEBUG_PERFORMANCE
     endProfiling("DCS-BIOS Loop");
-  #endif
+    #endif
 
-  #if DEBUG_PERFORMANCE
+    #if DEBUG_PERFORMANCE
     perfMonitorUpdate();
-  #endif
+    #endif
 }
 
+void sendDCSBIOSCommand(const char* label, uint16_t value, bool force = false) {
+    static char valueStr[10];
+    snprintf(valueStr, sizeof(valueStr), "%u", value);
+    unsigned long now = millis();
+
+    for (size_t i = 0; i < commandHistorySize; ++i) {
+        CommandHistoryEntry& entry = commandHistory[i];
+
+        if (strcmp(entry.label, label) != 0) continue;
+
+        // Throttle if not forced and same value recently sent
+        if (!force && value == entry.lastValue && (now - entry.lastSendTime < 33)) {
+            return;  // Skip — already sent too recently
+        }
+
+        if (tud_cdc_connected() || mySniffer.isStreamAlive()) {
+            DcsBios::sendDcsBiosMessage(label, valueStr);
+            tud_cdc_write_flush();
+
+            entry.lastValue = value;
+            entry.lastSendTime = now;
+
+            debugPrintf("🛩️ [DCS] %s = %u%s\n", label, value, force ? " (forced)" : "");
+        }
+
+        return;
+    }
+
+    // 🔒 Should never reach here — all used labels must be in commandHistory[]
+    debugPrintf("⚠️ [DCS] REJECTED untracked command: %s = %u\n", label, value);
+}
+
+/*
 void sendDCSBIOSCommand(const char* label, uint16_t value) {
 
     char valueStr[10];
@@ -286,8 +343,8 @@ void sendDCSBIOSCommand(const char* label, uint16_t value) {
     // The idea is that we'll NEVER call DcsBios::sendDcsBiosMessage without making sure it can receive our data
     if (tud_cdc_connected() || mySniffer.isStreamAlive()) {
         DcsBios::sendDcsBiosMessage(label, valueStr);
-        delay(10); // Experiment to see which value allows crazy transitions.
-        debugPrintf("🛩️ DCS Command Sent: %s %s\n", label, valueStr);
+        delay(25); // Experiment to see which value allows crazy transitions.
+        debugPrintf("🛩️ [DCS-MODE] Command Sent: %s %s\n", label, valueStr);
         return;
     }
 
@@ -297,3 +354,32 @@ void sendDCSBIOSCommand(const char* label, uint16_t value) {
         debugPrintf("⚠️ [NOT CONNECTED] Command suppressed: %s %s\n", label, valueStr);
     #endif
 }
+*/
+
+/*
+extern "C" {
+
+// Called when host asserts or clears DTR/RTS
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
+    debugPrintf("[CDC] line_state itf=%u DTR=%d RTS=%d\n",
+                (unsigned)itf, dtr, rts);
+}
+
+// Called when new data arrives (RX buffer non-empty)
+void tud_cdc_rx_cb(uint8_t itf) {
+    debugPrintf("[CDC] rx_cb itf=%u\n", (unsigned)itf);
+}
+
+// Called when a previous TX transfer completes
+void tud_cdc_tx_complete_cb(uint8_t itf) {
+    debugPrintf("[CDC] tx_complete itf=%u\n", (unsigned)itf);
+}
+
+// Called when host is waiting for a specific character
+void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char) {
+    debugPrintf("[CDC] rx_wanted itf=%u char=0x%02X\n",
+                (unsigned)itf, (uint8_t)wanted_char);
+}
+
+} // extern "C"
+*/

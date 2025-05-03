@@ -10,7 +10,6 @@
 // ECMPanel.cpp
 // Author: Bojote
 
-#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/ECMPanel.h"
 #include "src/HIDManager.h"
@@ -33,7 +32,7 @@ enum Port0Bits {
 
 // Initializes panel by reading its current state and deferring USB report
 void ECM_init() {
-  delay(50);  // Asegura que el PCA esté inicializado antes de leer
+  // delay(50);  // Asegura que el PCA esté inicializado antes de leer
   byte port0, port1;
   if (readPCA9555(ECM_PCA_ADDR, port0, port1)) {
     prevECMPort0 = port0;
@@ -69,11 +68,11 @@ void ECM_init() {
       HIDManager_setNamedButton("ECM_MODE_SW_XMIT", true);
 
     // Commit all deferred button reports at once
-    HIDManager_commitDeferredReport();
+    HIDManager_commitDeferredReport("ECM Panel");
 
-    debugPrintf("✅ Initialized PCA Panel 0X%02X\n",ECM_PCA_ADDR);
+    debugPrintf("✅ Initialized ECM Panel\n",ECM_PCA_ADDR);
   } else {
-    debugPrintf("❌ Could not initialize PCA Panel 0X%02X\n",ECM_PCA_ADDR);
+    debugPrintf("❌ Could not initialize ECM Panel\n",ECM_PCA_ADDR);
   }
 }
 

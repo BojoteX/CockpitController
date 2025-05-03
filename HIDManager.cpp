@@ -1,17 +1,32 @@
 // HIDManager.cpp - Corrected Refactor for ESP32 Arduino Core 3.2.0 (No TinyUSB)
 
-// Load TinyUSB
-#include <tusb.h>
-#include <USB.h>
-#include <USBHID.h>
-
-#define Serial USBSerial
-
 // Our regular includes
-#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
+
+/*
+extern "C" {
+
+// Called whenever the host toggles DTR or RTS.
+// We log it and then immediately return—no attempts to re-assert lines.
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
+  debugPrintf("[CDC] line_state itf=%u DTR=%d RTS=%d\n",
+              (unsigned)itf, (int)dtr, (int)rts);
+}
+
+} // extern "C"
+*/
+
+#include <USBHID.h>
+// Define HID + Load Descriptors
+USBHID HID;
+#include "src/HIDDescriptors.h"
+
+#if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
+// Get the USBCDC class (we don't need unless we DISABLE CDC ON BOOT)
+USBCDC USBSerial;
+#endif
 
 // Group bitmask store
 #define MAX_GROUPS 32
@@ -27,90 +42,175 @@ void buildHIDGroupBitmasks() {
   }
 }
 
-// HID report descriptor: 1 axis (Rx), 32 buttons
-uint8_t const hidReportDesc[] = {
-  0x05, 0x01,       // Usage Page (Generic Desktop)
-  0x09, 0x05,       // Usage (Gamepad)
-  0xA1, 0x01,       // Collection (Application)
+// Required for Descriptor handling
+#define USB_LANG_ID       0x0409  // English (US)
+#define USB_VID		  0xCAFE
+#define USB_PID		  0xFCC2
+#define USB_MANUFACTURER  "Bojote"
+#define USB_PRODUCT       "Cockpit Controller"
+#define USB_SERIAL        "SN-ZZ18-99"
+#define USB_IF_CDC_NAME   USB_PRODUCT
+#define USB_IF_HID_NAME   USB_PRODUCT
+#define USB_CFG_NAME      USB_PRODUCT
 
-  0x09, 0x36,       // Usage (Rx)
-  0x15, 0x00,       // Logical Minimum (0)
-  0x26, 0xFF, 0x0F, // Logical Maximum (4095)
-  0x75, 0x10,       // Report Size (16)
-  0x95, 0x01,       // Report Count (1)
-  0x81, 0x02,       // Input (Data, Var, Abs)
-
-  0x05, 0x09,       // Usage Page (Buttons)
-  0x19, 0x01,       // Usage Min (Button 1)
-  0x29, 0x20,       // Usage Max (Button 32)
-  0x15, 0x00,
-  0x25, 0x01,
-  0x75, 0x01,
-  0x95, 0x20,
-  0x81, 0x02,       // Input (Data, Var, Abs)
-
-  0xC0              // End Collection
-};
-
-// HID report structure
-typedef union {
-  struct __attribute__((packed)) {
-    uint16_t rx;
-    uint32_t buttons;
-  };
-  uint8_t raw[6];
-} GamepadReport_t;
-
-static_assert(sizeof(GamepadReport_t) == 6, "GamepadReport_t must be 6 bytes");
-static GamepadReport_t report;
-
-USBHID HID;
-class GPDevice : public USBHIDDevice {
-public:
-  GPDevice() { HID.addDevice(this, sizeof(hidReportDesc)); }
-  uint16_t _onGetDescriptor(uint8_t* buf) override {
-    memcpy(buf, hidReportDesc, sizeof(hidReportDesc));
-    return sizeof(hidReportDesc);
+// String Descriptor Helper
+static uint16_t _desc_str_buf[32];
+static const uint16_t* make_str_desc(const char* s) {
+  size_t len = strlen(s);
+  if (len > 30) len = 30;
+  // bDescriptorType=STRING (0x03), bLength = 2 + 2*len
+  _desc_str_buf[0] = (TUSB_DESC_STRING << 8) | (uint16_t)(2 * len + 2);
+  for (size_t i = 0; i < len; i++) {
+    _desc_str_buf[1 + i] = (uint16_t)s[i];
   }
-  bool sendReport(const void* data, int len) {
-    return HID.SendReport(0, data, len);
+  return _desc_str_buf;
+}
+
+// Override the weak TinyUSB string callback to fix ESP32 Core not setting correct device names when using composite devices (e.g CDC+HID)
+extern "C" {
+  const uint16_t* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
+    switch (index) {
+      case 0: {
+        static const uint16_t lang_desc[] = { (TUSB_DESC_STRING << 8) | 4, USB_LANG_ID };
+        return lang_desc;
+      }
+      case 1: return make_str_desc(USB_MANUFACTURER);
+      case 2: return make_str_desc(USB_PRODUCT);
+      case 3: return make_str_desc(USB_SERIAL);
+      case 4: return make_str_desc(USB_PRODUCT); // HID name
+      case 5: return make_str_desc(USB_PRODUCT); // CDC name
+      case 6: return make_str_desc(USB_PRODUCT); // Device name
+      default: return nullptr;
+    }
   }
-};
-GPDevice gp;
+}
+
+void checkTinyUSBBuffers() {
+  Serial.println("=== TinyUSB CDC Runtime FIFO Check ===");
+
+  // Check CDC TX FIFO buffer size explicitly
+  uint32_t tx_buf_avail = tud_cdc_write_available();
+  Serial.printf("CDC TX FIFO Available: %u bytes\n", tx_buf_avail);
+
+  // Fill TX FIFO explicitly to verify its actual size
+  Serial.println("Filling CDC TX FIFO to verify size...");
+  uint32_t tx_filled = 0;
+  while (tud_cdc_write_available()) {
+    tud_cdc_write_char(0x00);  // dummy data
+    tx_filled++;
+  }
+  tud_cdc_write_flush(); // explicitly flush
+
+  Serial.printf("\nTotal TX FIFO bytes actually filled: %u\n", tx_filled);
+
+  // Verify RX FIFO indirectly (less straightforward, but we can infer it)
+  uint32_t rx_fifo_used = tud_cdc_available();
+  Serial.printf("CDC RX FIFO Currently Used: %u bytes\n", rx_fifo_used);
+ 
+  Serial.println("=======================================");
+}
+
+// Log HID events
+static void hidEventLogger(void* /*arg*/,
+                           esp_event_base_t /*base*/,
+                           int32_t id,
+                           void* event_data)
+{
+    auto* d = (arduino_usb_hid_event_data_t*)event_data;
+    switch(id) {
+      case ARDUINO_USB_HID_SET_PROTOCOL_EVENT:
+        debugPrintf("[HID Event] Set_Protocol itf=%u proto=%u\n",
+                    (unsigned)d->instance,
+                    (unsigned)d->set_protocol.protocol);
+        break;
+
+      case ARDUINO_USB_HID_SET_IDLE_EVENT:
+        debugPrintf("[HID Event] Set_Idle     itf=%u idle_rate=%u\n",
+                    (unsigned)d->instance,
+                    (unsigned)d->set_idle.idle_rate);
+        break;
+
+      default:
+        debugPrintf("[HID Event] id=%d itf=%u\n",
+                    id,
+                    (unsigned)d->instance);
+        break;
+    }
+}
 
 // Initialize USB HID
 void HIDManager_begin() {
 
-  // Init DCSBIOS (Includes serial)
-  DCSBIOS_init();
-  delay(2000);
-  
-  // Load input bitmasks
-  buildHIDGroupBitmasks();
-
-  // Configure custom USB descriptors **before** starting HID
-  USB.VID(0xCAFE);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
-  USB.PID(0x18FF);                                // Set Product ID
-  USB.productName("FA-18C Cockpit Controller");   // Product string
-  USB.manufacturerName("Bojote");                 // Manufacturer string
-  USB.serialNumber("FA18C-AB-02");                // Serial number string
-
-  // USB Stack init (seems to start on its own)
+  // Load USB Stack
+  #if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
+  USB.VID(USB_VID);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
+  USB.PID(USB_PID);                                // Set Product ID
   USB.begin();
+  #endif
 
-  // We only initialize this when in HID mode, so we'll be effectively CDC only
+  // Serial.enableReboot(false);
+  // Serial.setRxBufferSize(16384);
+  Serial.begin();
+  delay(1000);
+
+  // Init DCSBIOS
+  DCSBIOS_init();
+
+// We only initialize this when in HID mode, so we'll be effectively CDC only
   if(!isModeSelectorDCS()) {
     HID.begin();
     while (!HID.ready()) { delay(10); }; //Do not continue until HID is ready
   }
+
+  // Subscribe to HID events
+  HID.onEvent(hidEventLogger);  // catch-all
+
+  // Load input bitmasks
+  buildHIDGroupBitmasks();
+
+  // checkTinyUSBBuffers();
 }
 
 void HIDManager_loop() {
+
+  // Calls our DCSBIOSBridge Loop function
   DCSBIOS_loop(); 
-  
+
+  #if ENABLE_HID_KEEPALIVE
   // Dont send HID reports if using DCS-BIOS mode switch
   if (!isModeSelectorDCS()) HIDManager_keepAlive();
+  #endif
 
+}
+
+static unsigned long lastHIDReportMillis[64] = {0};
+void HIDManager_sendReport(const char* label, int32_t value) {
+    if (!HID.ready()) return;
+
+    static uint8_t lastSent[sizeof(report.raw)] = {0};
+    static unsigned long lastSendTime = 0;
+    constexpr uint32_t HID_SEND_INTERVAL_MS = 1000 / HID_REPORT_RATE_HZ;
+
+    unsigned long now = millis();
+
+    // Skip identical report
+    if (memcmp(lastSent, report.raw, sizeof(report.raw)) == 0) return;
+
+    // Skip if sending too fast
+    if (now - lastSendTime < HID_SEND_INTERVAL_MS) return;
+
+    // Send report
+    gp.sendReport(report.raw, sizeof(report.raw));
+    memcpy(lastSent, report.raw, sizeof(report.raw));
+    lastSendTime = now;
+
+    // Debug output
+    if (label) {
+        if (value >= 0)
+            debugPrintf("🛩️ [HID] Report: %s = %d\n", label, value);
+        else
+            debugPrintf("🛩️ [HID] Report from: %s\n", label);
+    }
 }
 
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
@@ -143,11 +243,10 @@ void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
             lastOutput[pin] = filtered;
             if (isModeSelectorDCS()) {
                 int dcsOutput = map(filtered, 0, 4095, 0, 65535);
-                sendDCSBIOSCommand(dcsIdentifier, dcsOutput);
+                sendDCSBIOSCommand(dcsIdentifier, dcsOutput, false);
             } else {
                 report.rx = filtered;
-                gp.sendReport(report.raw, sizeof(report));
-                debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);
+                HIDManager_sendReport(dcsIdentifier, filtered);
             }
         }
         return;
@@ -157,19 +256,17 @@ void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
         lastOutput[pin] = filtered;
         if (isModeSelectorDCS()) {
             int dcsOutput = map(filtered, 0, 4095, 0, 65535);
-            sendDCSBIOSCommand(dcsIdentifier, dcsOutput);
+            sendDCSBIOSCommand(dcsIdentifier, dcsOutput, false);
         } else {
             report.rx = filtered;
-            gp.sendReport(report.raw, sizeof(report));
-            debugPrintf("[HID MODE] %s %d\n", dcsIdentifier, filtered);
+            HIDManager_sendReport(dcsIdentifier, filtered);
         }
     }
 }
 
 // Commit Deferred Report
-void HIDManager_commitDeferredReport() {
-  if (!HID.ready()) return;
-  gp.sendReport(report.raw, sizeof(report));
+void HIDManager_commitDeferredReport(const char* deviceName) {
+  HIDManager_sendReport(deviceName);
 }
 
 // For polling rate on panels that need it
@@ -181,13 +278,33 @@ bool shouldPollMs(unsigned long &lastPoll) {
   return true;
 }
 
+// For polling rate on panels that need it
+bool dcsUpdateMs(unsigned long &lastPoll) {
+  const unsigned long pollingIntervalMs = 1000 / DCS_UPDATE_RATE_HZ;
+  unsigned long now = millis();
+  if (now - lastPoll < pollingIntervalMs) return false;
+  lastPoll = now;
+  return true;
+}
+
 void HIDManager_keepAlive() {
-  // Limit based on our poll rate
-  static unsigned long lastHIDPoll = 0;
-  if (!shouldPollMs(lastHIDPoll)) return;
-  
-  if (!HID.ready()) return;
-  gp.sendReport(report.raw, sizeof(report));
+    static unsigned long lastKeepAliveMillis = 0;
+    static uint8_t lastKeepAliveReport[sizeof(report.raw)] = {0};
+    constexpr uint32_t KEEP_ALIVE_INTERVAL_MS = HID_KEEP_ALIVE_INTERVAL_MS;
+
+    if (!HID.ready()) return;
+
+    // Only send if report is unchanged AND it's been over 1 second
+    if (memcmp(lastKeepAliveReport, report.raw, sizeof(report.raw)) == 0) {
+        if (millis() - lastKeepAliveMillis >= KEEP_ALIVE_INTERVAL_MS) {
+            gp.sendReport(report.raw, sizeof(report.raw));
+            lastKeepAliveMillis = millis();
+        }
+    } else {
+        // New report state → reset timer and store state
+        memcpy(lastKeepAliveReport, report.raw, sizeof(report.raw));
+        lastKeepAliveMillis = millis();
+    }
 }
 
 void HIDManager_toggleIfPressed(bool isPressed, const char* label, bool deferSend) {
@@ -216,7 +333,7 @@ void HIDManager_setToggleNamedButton(const char* name, bool deferSend) {
 
   if (isModeSelectorDCS()) {
     if (m->oride_label && m->oride_value >= 0)
-      sendDCSBIOSCommand(m->oride_label, newState ? m->oride_value : 0);
+      sendDCSBIOSCommand(m->oride_label, newState ? m->oride_value : 0, false);
     return;
   }
 
@@ -232,8 +349,9 @@ void HIDManager_setToggleNamedButton(const char* name, bool deferSend) {
   else
     report.buttons &= ~mask;
 
-  if (!deferSend && HID.ready())
-    gp.sendReport(report.raw, sizeof(report));
+  if (!deferSend) {
+    HIDManager_sendReport(name);
+  }
 }
 
 void HIDManager_handleGuardedToggle(bool isPressed, const char* switchLabel, const char* coverLabel, const char* fallbackLabel, bool deferSend) {
@@ -295,7 +413,7 @@ void HIDManager_setNamedButton(const char* name, bool deferSend, bool pressed) {
 
   if (isModeSelectorDCS()) {
     if (m->oride_label && m->oride_value >= 0)
-      sendDCSBIOSCommand(m->oride_label, pressed ? m->oride_value : 0);
+      sendDCSBIOSCommand(m->oride_label, pressed ? m->oride_value : 0, false);
     return;
   }
 
@@ -311,6 +429,7 @@ void HIDManager_setNamedButton(const char* name, bool deferSend, bool pressed) {
   else
     report.buttons &= ~mask;
 
-  if (!deferSend && HID.ready())
-    gp.sendReport(report.raw, sizeof(report));
+  if (!deferSend) {
+    HIDManager_sendReport(name);
+  }
 }

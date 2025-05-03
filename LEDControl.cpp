@@ -1,8 +1,6 @@
 // LEDControl.cpp
 // Optimized Centralized LED management for TEKCreations F/A-18C Cockpit Firmware
 
-#include <Arduino.h>
-#include <string.h>
 #include "src/Globals.h"
 #include "src/LEDControl.h"
 #include "src/LABELS/LEDMapping.h"
@@ -80,68 +78,94 @@ void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
 // Blazing fast setLED()
 void setLED(const char* label, bool state, uint8_t intensity) {
 
-    #if DEBUG_PERFORMANCE
-    beginProfiling("setLED");
-    #endif
-
     const LEDMapping* led = findLED(label);
     if (!led) {
         if(DEBUG) debugPrintf("⚠️ LED label '%s' not found\n", label);
-        #if DEBUG_PERFORMANCE
-        endProfiling("setLED");
-        #endif
         return;
     }
 
     switch (led->deviceType) {
         case DEVICE_GPIO:
+            #if DEBUG_PERFORMANCE
+            beginProfiling("setLED: GPIO");
+            #endif
             if (led->dimmable) {
                 analogWrite(led->info.gpioInfo.gpio, state ? map(intensity, 0, 100, 0, 255) : 0);
             } else {
                 digitalWrite(led->info.gpioInfo.gpio, state);
             }
+            #if DEBUG_PERFORMANCE
+            endProfiling("setLED: GPIO");
+            #endif            
             break;
 
         case DEVICE_PCA9555:
+            #if DEBUG_PERFORMANCE
+            beginProfiling("setLED: PCA9555");
+            #endif        
             PCA9555_write(
                 led->info.pcaInfo.address,
                 led->info.pcaInfo.port,
                 led->info.pcaInfo.bit,
                 led->activeLow ? !state : state
             );
+            #if DEBUG_PERFORMANCE
+            endProfiling("setLED: PCA9555");
+            #endif            
             break;
 
         case DEVICE_TM1637: {
+            #if DEBUG_PERFORMANCE
+            beginProfiling("setLED: TM1637");
+            #endif            
             auto& device = (led->info.tm1637Info.dioPin == RA_DIO_PIN) ? RA_Device : LA_Device;
             tm1637_displaySingleLED(device,
                 led->info.tm1637Info.segment,
                 led->info.tm1637Info.bit,
                 state
             );
+            #if DEBUG_PERFORMANCE
+            endProfiling("setLED: TM1637");
+            #endif            
             break;
         }
 
         case DEVICE_GN1640T:
+            #if DEBUG_PERFORMANCE
+            beginProfiling("setLED: GN1640");
+            #endif        
             GN1640_setLED(
                 led->info.gn1640Info.column,
                 led->info.gn1640Info.row,
                 state
             );
+            #if DEBUG_PERFORMANCE
+            endProfiling("setLED: GN1640");
+            #endif            
             break;
 
         case DEVICE_WS2812:
+            #if DEBUG_PERFORMANCE
+            beginProfiling("setLED: WS2812");
+            #endif        
             WS2812_setLEDColor(
                 led->info.ws2812Info.index,
                 state ? CRGB::Green : CRGB::Black
             );
+            #if DEBUG_PERFORMANCE
+            endProfiling("setLED: WS2812");
+            #endif            
             break;
 
         case DEVICE_NONE:
         default:
-            if(DEBUG) debugPrintf("⚠️ LED '%s' has DEVICE_NONE\n", label);
+            #if DEBUG_PERFORMANCE
+            beginProfiling("setLED: Unknown Device");
+            #endif        
+            if(DEBUG) debugPrintf("⚠️ '%s' is NOT a LED or has not being configured yet\n", label);
+            #if DEBUG_PERFORMANCE
+            endProfiling("setLED: Unknown Device");
+            #endif            
             break;
     }
-    #if DEBUG_PERFORMANCE
-    endProfiling("setLED");
-    #endif
 }

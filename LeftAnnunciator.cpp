@@ -29,7 +29,7 @@ void LeftAnnunciator_init() {
     HIDManager_setNamedButton("MASTER_CAUTION_RESET_SW", true, true);
     }
 
-    HIDManager_commitDeferredReport();
+    HIDManager_commitDeferredReport("Left Annunciator");
 
   debugPrintln("✅ LEFT Annunciator initialized for buttons");
 }
@@ -56,7 +56,6 @@ void LeftAnnunciator_loop() {
                 HIDManager_setNamedButton("MASTER_CAUTION_RESET_SW", false, currCaution);
             }
 
-            HIDManager_commitDeferredReport();
             prevFinalKeysLA = finalKeys;
         }
     }

@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include "src/Globals.h"   
 
 #if DEBUG_ENABLED

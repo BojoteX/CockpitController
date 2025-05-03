@@ -21,7 +21,7 @@ void RightAnnunciator_init() {
         HIDManager_setToggleNamedButton("APU_FIRE_BTN", true); // deferSend = true
     }
 
-    HIDManager_commitDeferredReport();
+    HIDManager_commitDeferredReport("Right Annunciator");
 
     debugPrintln("✅ RIGHT Annunciator initialized for buttons");
 }
@@ -48,7 +48,6 @@ void RightAnnunciator_loop() {
             bool currRightFire = !(finalKeys & 0x01);
             HIDManager_handleGuardedMomentary(currRightFire, "RIGHT_FIRE_BTN", "RIGHT_FIRE_BTN_COVER");
 
-            HIDManager_commitDeferredReport();
             prevFinalKeysRA = finalKeys;
         }
     }

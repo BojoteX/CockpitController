@@ -7,7 +7,6 @@
 #define CUTILS_H
 
 typedef uint8_t byte;
-#include <cstdint>
 #include "../../../src/LABELS/InputMapping.h"
 #include "../../../src/LEDControl.h"
 
@@ -23,6 +22,7 @@ typedef uint8_t byte;
 // GPIO helpers
 void GPIO_setAllLEDs(bool state);
 
+/* RMT FOR WS2812.... TEMPORARY DISABLED  
 // WS2812
 #define NUM_LEDS 3
 struct CRGB {uint8_t r, g, b;
@@ -33,6 +33,21 @@ struct CRGB {uint8_t r, g, b;
   static const CRGB Yellow;
 };
 extern uint8_t brightness;
+void WS2812_init();
+void WS2812_setLEDColor(uint8_t ledIndex, CRGB color);
+void WS2812_clearAll();
+void WS2812_allOn(CRGB color);
+void WS2812_allOff();
+void WS2812_sweep(const CRGB* colors, uint8_t count);
+void WS2812_testPattern();
+void WS2812_setAllLEDs(bool state);
+*/
+
+// WS2812 via FastLED
+#include <FastLED.h>
+#define NUM_LEDS 3
+extern CRGB leds[NUM_LEDS];
+extern uint8_t brightness;   // 0–255 global brightness
 void WS2812_init();
 void WS2812_setLEDColor(uint8_t ledIndex, CRGB color);
 void WS2812_clearAll();

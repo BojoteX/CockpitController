@@ -1,0 +1,12 @@
+2025-05-02 15:29:17,118 ERROR: Failed to open 2: could not open port '2': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+2025-05-02 15:29:17,118 CRITICAL: Could not open one or both serial ports. Exiting.
+2025-05-02 15:31:59,395 INFO: Opened COM2 at 250000 baud.
+2025-05-02 15:31:59,429 INFO: Opened COM69 at 250000 baud.
+2025-05-02 15:36:41,741 INFO: Opened COM2 at 250000 baud.
+2025-05-02 15:36:41,776 INFO: Opened COM69 at 250000 baud.
+2025-05-02 15:36:47,444 INFO: Interrupted by user.
+2025-05-02 15:36:47,451 INFO: Closed serial ports.
+2025-05-02 15:43:04,455 INFO: Opened COM2 at 250000 baud.
+2025-05-02 15:43:04,489 INFO: Opened COM69 at 250000 baud.
+2025-05-02 15:48:29,295 INFO: Interrupted by user.
+2025-05-02 15:48:29,313 INFO: Closed serial ports.

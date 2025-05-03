@@ -1,13 +1,40 @@
 #include "src/Globals.h"     
 
 #if DEBUG_PERFORMANCE
-#include "Arduino.h"
-#include <string>
+#include <string> 
+#include <vector>
+#include <unordered_map>
 #include "src/PerfMonitor.h"
-#include <esp_system.h>                     // esp_reset_reason()
-#include <esp_timer.h>                      // esp_timer_get_time()
-#include <driver/temperature_sensor.h>      // temperature_sensor_*
-#include "esp_pm.h"
+
+#if VERBOSE_MODE_WIFI_ONLY
+#define USE_ANSI 1   
+#else
+#define USE_ANSI 0  
+#endif
+
+#if USE_ANSI
+  #define ANSI_CYN "\x1b[1;36m"
+  #define ANSI_YEL "\x1b[1;33m"
+  #define ANSI_GRN "\x1b[32m"
+  #define ANSI_MAG "\x1b[35m"
+  #define ANSI_RST "\x1b[0m"
+
+  #define BOX_TOP ANSI_CYN "╔═════════════════════════════ 🚀 PERFORMANCE SNAPSHOT 🚀 ═════════════════════════════╗" ANSI_RST
+  #define BOX_DIV ANSI_CYN "╠══════════════════════════════════════════════════════════════════════════════════════╣" ANSI_RST
+  #define BOX_BOT ANSI_CYN "╚══════════════════════════════════════════════════════════════════════════════════════╝" ANSI_RST
+#else
+  #define ANSI_CYN ""
+  #define ANSI_YEL ""
+  #define ANSI_GRN ""
+  #define ANSI_MAG ""
+  #define ANSI_RST ""
+
+  #define BOX_TOP "+-------------------- PERFORMANCE SNAPSHOT ----------------------+"
+  #define BOX_DIV "+----------------------------------------------------------------+"
+  #define BOX_BOT "+----------------------------------------------------------------+"
+#endif
+
+// #include <driver/temperature_sensor.h>
 
 // Convert seconds to milliseconds at compile time
 #define PERFORMANCE_SNAPSHOT_INTERVAL_MS (PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS * 1000UL)
@@ -23,7 +50,7 @@ static unsigned long _lastLoopUs   = 0;
 static uint64_t       _busyUsAccum = 0;
 
 // Temperature sensor handle
-static temperature_sensor_handle_t _tempHandle = nullptr;
+// static temperature_sensor_handle_t _tempHandle = nullptr;
 
 // One-time bad-reset alert guard
 static bool _alertShown = false;
@@ -59,16 +86,6 @@ inline void perfDebugPrintf(const char* format, ...) {
 #endif
 }
 
-void setCpuFrequencyMhz(int freq) {
-    esp_pm_config_esp32s2_t pm_config = {
-        .max_freq_mhz = (uint32_t)freq,
-        .min_freq_mhz = (uint32_t)freq,
-        .light_sleep_enable = false
-    };
-
-    esp_pm_configure(&pm_config);
-}
-
 // True if this reset should trigger an alert
 static bool _isBadReset(esp_reset_reason_t r) {
     return (r == ESP_RST_INT_WDT)   ||
@@ -100,9 +117,6 @@ static const char* _resetReasonToString(esp_reset_reason_t r) {
 
 void initPerfMonitor() {
 
-    // Set our CPU Freq. for debugging (we dont use this for production)
-    // setCpuFrequencyMhz(80);  // 80, 160 or 240
-
     // 1) Show alert once on bad resets
     if (!_alertShown) {
         _alertShown = true;
@@ -113,9 +127,9 @@ void initPerfMonitor() {
                         _resetReasonToString(reason), reason);
 
             // Install & enable temp sensor before snapshot
-            temperature_sensor_config_t cfg = { .range_min=10, .range_max=50 };
-            temperature_sensor_install(&cfg, &_tempHandle);
-            temperature_sensor_enable(_tempHandle);
+            // temperature_sensor_config_t cfg = { .range_min=10, .range_max=50 };
+            // temperature_sensor_install(&cfg, &_tempHandle);
+            // temperature_sensor_enable(_tempHandle);
 
             // Immediate health snapshot
             perfMonitorUpdate();
@@ -138,11 +152,11 @@ void initPerfMonitor() {
     _lastLoopUs   = micros();
 
     // 3) Ensure temp sensor ready for future reads
-    if (!_tempHandle) {
-        temperature_sensor_config_t cfg = { .range_min=10, .range_max=50 };
-        temperature_sensor_install(&cfg, &_tempHandle);
-        temperature_sensor_enable(_tempHandle);
-    }
+    // if (!_tempHandle) {
+        // temperature_sensor_config_t cfg = { .range_min=10, .range_max=50 };
+        // temperature_sensor_install(&cfg, &_tempHandle);
+        // temperature_sensor_enable(_tempHandle);
+    // }
 }
 
 void beginProfiling(const char* label) {
@@ -159,73 +173,206 @@ void endProfiling(const char* label) {
     a.cnt   += 1;
 }
 
+/*
 void perfMonitorUpdate() {
     unsigned long nowMs = millis();
-    if (nowMs - _lastReportMs < PERFORMANCE_SNAPSHOT_INTERVAL_MS) return;
-    unsigned long windowMs = nowMs - _lastReportMs;
+    if ( nowMs - _lastReportMs < PERFORMANCE_SNAPSHOT_INTERVAL_MS ) return;
+    _lastReportMs = nowMs;
 
-    // Header
-    perfDebugPrintln("\n\n────────────────────────────────────── [ PERFORMANCE SNAPSHOT ] ──────────────────────────────────────");
-    perfDebugPrintln("● [Profiling Averages]");
+    // — Box top —
+    perfDebugPrintln("\x1b[1;36m╔═════════════════════════════ 🚀 PERFORMANCE SNAPSHOT 🚀 ═════════════════════════════╗\x1b[0m");
 
-    // 1) Print averages and capture Main Loop avg
-    float mainLoopAvgMs = 0.0f;
-    for (auto it = _accumulators.begin(); it != _accumulators.end(); ) {
+    // — Profiling Averages —
+    perfDebugPrintln("\x1b[1;33m🔍  Profiling Averages:\x1b[0m");
+    float mainLoopAvgMs = 0, dcsLoopAvgMs = 0, setLEDAvgMs = 0;
+    for ( auto it = _accumulators.begin(); it != _accumulators.end(); ) {
         const auto& lbl = it->first;
         const auto& a   = it->second;
         float avgMs     = a.cnt ? (a.sumUs / (float)a.cnt) / 1000.0f : 0.0f;
-        if (lbl == "Main Loop") {
-            mainLoopAvgMs = avgMs;
-        }
-        perfDebugPrintf("  └─ %-16s: avg %6.2f ms\n", lbl.c_str(), avgMs);
+        if ( lbl == "Main Loop" )      mainLoopAvgMs = avgMs;
+        else if ( lbl == "DCS-BIOS Loop" ) dcsLoopAvgMs  = avgMs;
+        else if ( lbl == "setLED" )    setLEDAvgMs  = avgMs;
         it = _accumulators.erase(it);
     }
+    perfDebugPrintf("    ∘ Main Loop     : \x1b[32m%6.2f ms\x1b[0m\n", mainLoopAvgMs);
+    perfDebugPrintf("    ∘ DCS-BIOS Loop : \x1b[32m%6.2f ms\x1b[0m\n", dcsLoopAvgMs);
+    perfDebugPrintf("    ∘ setLED        : \x1b[32m%6.2f ms\x1b[0m\n", setLEDAvgMs);
 
-    // 2) Compute metrics based on poll rate
-    constexpr float frameMs      = 1000.0f / POLLING_RATE_HZ;      // e.g. 4.0 ms @ 250 Hz
-    float           pollLoadPct  = (mainLoopAvgMs / frameMs) * 100.0f;
-    float           headroomMs   = frameMs - mainLoopAvgMs;
-    float           headroomPct  = 100.0f - pollLoadPct;
-    float           scaleFactor  = mainLoopAvgMs > 0.0f
-                                 ? (frameMs / mainLoopAvgMs)
-                                 : 0.0f;
-
-    // 3) Print poll-budget load, headroom, and scale capacity
-    perfDebugPrintln("\n● [System Status]");
-    perfDebugPrintf("  └─ Poll Load       : %5.1f%% of %.2f ms slot\n", pollLoadPct, frameMs);
-    perfDebugPrintf("  └─ Headroom        : %5.3f ms (%5.1f%%)\n",          headroomMs, headroomPct);
-    perfDebugPrintf("  └─ Scale Capacity  : %5.2fx current workload\n",        scaleFactor);
-
-    // 4) Print the rest of your existing status info
-    size_t freeHeap  = ESP.getFreeHeap() / 1024;
-    size_t maxAlloc  = ESP.getMaxAllocHeap() / 1024;
-    float  fragPct   = freeHeap
-                     ? ((freeHeap - maxAlloc) / (float)freeHeap) * 100.0f
-                     : 0.0f;
-
-    float tempC = 0.0f;
-    temperature_sensor_get_celsius(_tempHandle, &tempC);
-    int cpuMHz = ESP.getCpuFreqMHz();
-
+    // — System Status —
+    constexpr float frameMs = 1000.0f / POLLING_RATE_HZ;
+    float pollLoadPct = (mainLoopAvgMs / frameMs) * 100.0f;
+    float headroomMs  = frameMs - mainLoopAvgMs;
+    float headroomPct = 100.0f - pollLoadPct;
+    float scaleFactor = mainLoopAvgMs > 0 ? (frameMs / mainLoopAvgMs) : 0.0f;
     uint64_t uptimeSec = esp_timer_get_time() / 1000000ULL;
     uint32_t mins      = uptimeSec / 60;
     uint32_t secs      = uptimeSec % 60;
+    float    tempC     = 0;
+    // temperature_sensor_get_celsius(_tempHandle, &tempC);
+    int      cpuMHz    = ESP.getCpuFreqMHz();
     const char* rr     = _resetReasonToString(esp_reset_reason());
 
-    if (mins) {
-        perfDebugPrintf("  └─ Uptime         : %lum%02lus\n", mins, secs);
-    } else {
-        perfDebugPrintf("  └─ Uptime         : %4lus\n", secs);
-    }
-    perfDebugPrintf("  └─ CPU Frequency  : %d MHz\n",       cpuMHz);
-    perfDebugPrintf("  └─ Temperature    : %.1f°C\n",       tempC);
-    perfDebugPrintf("  └─ Heap Free      : %u KB\n",        (unsigned)freeHeap);
-    perfDebugPrintf("  └─ Largest Block  : %u KB\n",       (unsigned)maxAlloc);
-    perfDebugPrintf("  └─ Heap Fragment. : %.1f%%\n",       fragPct);
-    perfDebugPrintf("  └─ Last Reset     : %s\n",          rr);
 
-    perfDebugPrintln("──────────────────────────────────────────────────────────────────────────────────────────────────────\n");
+    perfDebugPrintln("");
+    perfDebugPrintln("\n\x1b[1;33m🕑  System Status:\x1b[0m");
+    perfDebugPrintf("    ∘ Poll Load     : \x1b[32m%5.1f%%\x1b[0m of \x1b[36m%.2f ms\x1b[0m slot\n",
+                    pollLoadPct, frameMs);
+    perfDebugPrintf("    ∘ Headroom      : \x1b[32m%5.3f ms\x1b[0m (\x1b[32m%5.1f%%\x1b[0m)\n",
+                    headroomMs, headroomPct);
+    perfDebugPrintf("    ∘ Scale Cap.    : \x1b[32m%5.2fx\x1b[0m current workload\n", scaleFactor);
 
-    _lastReportMs = nowMs;
+    if (mins)
+        perfDebugPrintf("    ∘ Uptime        : \x1b[32m%lum%02lus\x1b[0m\n", mins, secs);
+    else
+        perfDebugPrintf("    ∘ Uptime        : \x1b[32m%4lus\x1b[0m\n", secs);
+    perfDebugPrintf("    ∘ CPU Frequency : \x1b[32m%3d MHz\x1b[0m\n", cpuMHz);
+    // perfDebugPrintf("    ∘ Temperature   : \x1b[31m%4.1f°C\x1b[0m\n", tempC);
+    perfDebugPrintf("    ∘ Last Reset    : \x1b[35m%s\x1b[0m\n", rr);
+
+
+    // — Memory Fragmentation —
+    size_t free_int    = heap_caps_get_free_size         (MALLOC_CAP_INTERNAL);
+    size_t largest_int = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    float  frag_int    = free_int
+                       ? 100.0f * (1.0f - (float)largest_int / (float)free_int)
+                       : 0.0f;
+    size_t free_psram    = heap_caps_get_free_size         (MALLOC_CAP_SPIRAM);
+    size_t largest_psram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+    float  frag_psram    = free_psram
+                         ? 100.0f * (1.0f - (float)largest_psram / (float)free_psram)
+                         : 0.0f;
+
+    perfDebugPrintln("");
+    perfDebugPrintln("\n\x1b[1;33m💾  Memory Fragmentation:\x1b[0m");
+    perfDebugPrintf("    ∘ Internal SRAM : free \x1b[31m%6u KB\x1b[0m, largest \x1b[32m%6u KB\x1b[0m, frag \x1b[33m%5.1f%%\x1b[0m\n",
+                    (unsigned)(free_int/1024), (unsigned)(largest_int/1024), frag_int);
+    perfDebugPrintf("    ∘ PSRAM Pool    : free \x1b[32m%6u KB\x1b[0m, largest \x1b[32m%6u KB\x1b[0m, frag \x1b[32m%5.1f%%\x1b[0m\n",
+                    (unsigned)(free_psram/1024), (unsigned)(largest_psram/1024), frag_psram);
+
+    // — USB-CDC Buffer Health —
+    int txAvail   = Serial.availableForWrite();
+    int rxWaiting = Serial.available();
+
+    perfDebugPrintln("");
+    perfDebugPrintln("\n\x1b[1;33m📡  USB-CDC Buffer Health:\x1b[0m");
+    perfDebugPrintf("    ∘ TX Free Slots : \x1b[32m%6d bytes\x1b[0m\n", txAvail);
+    perfDebugPrintf("    ∘ RX Pending    : \x1b[32m%6d bytes\x1b[0m\n", rxWaiting);
+
+    // — Box bottom —
+    perfDebugPrintln("\x1b[1;36m╚══════════════════════════════════════════════════════════════════════════════════════╝\x1b[0m");
 }
+*/
+
+void perfMonitorUpdate() {
+    unsigned long nowMs = millis();
+    if (nowMs - _lastReportMs < PERFORMANCE_SNAPSHOT_INTERVAL_MS) return;
+    _lastReportMs = nowMs;
+
+    // — Box top —
+    perfDebugPrintln(BOX_TOP);
+
+    // — Profiling Averages —
+    perfDebugPrintln(ANSI_YEL "🔍  Profiling Averages:" ANSI_RST);
+
+    struct LabelAvg { std::string label; float avgMs; };
+    std::vector<LabelAvg> avgs;
+    avgs.reserve(_accumulators.size());
+
+    // collect and clear
+    for (auto& kv : _accumulators) {
+        const auto& label = kv.first;
+        const auto& a     = kv.second;
+        float avgUs       = a.cnt ? (a.sumUs / static_cast<float>(a.cnt)) : 0.0f;
+        avgs.push_back({ label, avgUs / 1000.0f });
+    }
+    _accumulators.clear();
+
+    // print all
+    for (auto& e : avgs) {
+        perfDebugPrintf("    ∘ %-15s : %s%6.2f ms%s\n",
+                        e.label.c_str(),
+                        ANSI_GRN, e.avgMs, ANSI_RST);
+    }
+
+    // — Divider —
+    perfDebugPrintln(BOX_DIV);
+
+    // — System Status —
+    perfDebugPrintln(ANSI_YEL "🕑  System Status:" ANSI_RST);
+    constexpr float frameMs = 1000.0f / POLLING_RATE_HZ;
+
+    // find Main Loop avg for load calculations
+    float mainLoopAvgMs = 0.0f;
+    for (auto& e : avgs) {
+        if (e.label == "Main Loop") {
+            mainLoopAvgMs = e.avgMs;
+            break;
+        }
+    }
+
+    float pollLoadPct = (mainLoopAvgMs / frameMs) * 100.0f;
+    float headroomMs  = frameMs - mainLoopAvgMs;
+    float headroomPct = 100.0f - pollLoadPct;
+    float scaleFactor = mainLoopAvgMs > 0.0f ? (frameMs / mainLoopAvgMs) : 0.0f;
+    uint64_t uptimeSec = esp_timer_get_time() / 1000000ULL;
+    uint32_t mins      = uptimeSec / 60;
+    uint32_t secs      = uptimeSec % 60;
+    int      cpuMHz    = ESP.getCpuFreqMHz();
+    const char* rr     = _resetReasonToString(esp_reset_reason());
+
+    perfDebugPrintf("    ∘ Poll Load     : %s%5.1f%%%s of %s%.2f ms%s slot\n",
+                    ANSI_GRN, pollLoadPct, ANSI_RST,
+                    ANSI_CYN, frameMs, ANSI_RST);
+    perfDebugPrintf("    ∘ Headroom      : %s%5.3f ms%s (%s%5.1f%%%s)\n",
+                    ANSI_GRN, headroomMs, ANSI_RST,
+                    ANSI_GRN, headroomPct, ANSI_RST);
+    perfDebugPrintf("    ∘ Scale Cap.    : %s%5.2fx%s current workload\n",
+                    ANSI_GRN, scaleFactor, ANSI_RST);
+    if (mins)
+        perfDebugPrintf("    ∘ Uptime        : %s%lum%02lus%s\n", ANSI_GRN, mins, secs, ANSI_RST);
+    else
+        perfDebugPrintf("    ∘ Uptime        : %s%4lus%s\n", ANSI_GRN, secs, ANSI_RST);
+    perfDebugPrintf("    ∘ CPU Frequency : %s%3d MHz%s\n", ANSI_GRN, cpuMHz, ANSI_RST);
+    perfDebugPrintf("    ∘ Last Reset    : %s%s%s\n", ANSI_MAG, rr, ANSI_RST);
+
+    // — Divider —
+    perfDebugPrintln(BOX_DIV);
+
+    // — Memory Fragmentation —
+    size_t free_int    = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    size_t largest_int = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    float  frag_int    = free_int
+                       ? 100.0f * (1.0f - (float)largest_int / (float)free_int)
+                       : 0.0f;
+    size_t free_psram    = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    size_t largest_psram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+    float  frag_psram    = free_psram
+                         ? 100.0f * (1.0f - (float)largest_psram / (float)free_psram)
+                         : 0.0f;
+
+    perfDebugPrintln(ANSI_YEL "💾  Memory Fragmentation:" ANSI_RST);
+    perfDebugPrintf("    ∘ Internal SRAM : free %s%6u KB%s, largest %s%6u KB%s, frag %s%5.1f%%%s\n",
+                    ANSI_GRN, (unsigned)(free_int/1024), ANSI_RST,
+                    ANSI_GRN, (unsigned)(largest_int/1024), ANSI_RST,
+                    ANSI_YEL, frag_int, ANSI_RST);
+    perfDebugPrintf("    ∘ PSRAM Pool    : free %s%6u KB%s, largest %s%6u KB%s, frag %s%5.1f%%%s\n",
+                    ANSI_GRN, (unsigned)(free_psram/1024), ANSI_RST,
+                    ANSI_GRN, (unsigned)(largest_psram/1024), ANSI_RST,
+                    ANSI_GRN, frag_psram, ANSI_RST);
+
+    // — Divider —
+    perfDebugPrintln(BOX_DIV);
+
+    // — USB-CDC Buffer Health —
+    int txAvail   = Serial.availableForWrite();
+    int rxWaiting = Serial.available();
+
+    perfDebugPrintln(ANSI_YEL "📡  USB-CDC Buffer Health:" ANSI_RST);
+    perfDebugPrintf("    ∘ TX Free Slots : %s%6d bytes%s\n", ANSI_GRN, txAvail, ANSI_RST);
+    perfDebugPrintf("    ∘ RX Pending    : %s%6d bytes%s\n", ANSI_GRN, rxWaiting, ANSI_RST);
+
+    // — Box bottom —
+    perfDebugPrintln(BOX_BOT);
+}
+
 #endif // DEBUG_PERFORMANCE

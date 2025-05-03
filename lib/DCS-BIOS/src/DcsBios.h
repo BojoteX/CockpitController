@@ -122,7 +122,7 @@ do not come with their own build system, we are just putting everything into the
 	namespace DcsBios {
 		ProtocolParser parser;
 		void setup() {
-			Serial.begin(250000);
+			// Serial.begin(250000);
 		}
 		void loop() {
 			while (Serial.available()) {

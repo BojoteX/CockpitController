@@ -7,10 +7,22 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Self explanatory, don't change if you don't know what you are doing
-#define POLLING_RATE_HZ       250 // Panel and HID polling rate (125, 250, 500 and 1000 are all valid, 250 is default)
+// There is really no need for this, but if for you, ensuring cockpit sync is a top priority, use it. The design and architecture of this 
+// program is already fault-tolerant and throttles ALL sends to match DCS_UPDATE_RATE_HZ and avoid skipping commands. Like a PRO LEVEL
+// cockpit sim. 
+#define ENABLE_DCS_COMMAND_KEEPALIVE  0             // Explained above
+#define ENABLE_HID_KEEPALIVE          1             // Same, but for HID
 
-#define PCA_FAST_MODE         1   // Set to 1 to enable 400MHz PCA Bus FAST MODE (VERY UNSTABLE)   
+// Self explanatory, don't change if you don't know what you are doing
+#define DCS_UPDATE_RATE_HZ            30            // Change only if DCSBIOS ever changes its update freq (highly unlinkely)
+#define HID_REPORT_RATE_HZ            60            // Max 60Hz HID report rate to avoid spamming the CDC Endpoint / USB
+#define POLLING_RATE_HZ              250            // Panel and HID polling rate (125, 250, 500 and 1000 are all valid, 250 is default)
+#define HID_KEEP_ALIVE_INTERVAL_MS  1000            // Resend unchanged HID report after 1s
+#define DCS_KEEP_ALIVE_INTERVAL_MS  1000            // Re-send selector command every 1s if unchanged
+#define DCS_KEEPALIVE_POLL_INTERVAL POLLING_RATE_HZ // How often to check for keep-alive conditions
+
+// Set to 1 to enable 400MHz PCA Bus FAST MODE   
+#define PCA_FAST_MODE         1   
 
 // Panel Load Flags (PCA panels auto-detected at runtime, no need for defines)
 #define LOAD_PANEL_CA         1   // Caution Advisory
@@ -44,8 +56,13 @@
 #define TEST_LEDS 0
 
 // Does the device have a HID/DCS Mode selector? if so, what PIN? 
-#define MODE_SWITCH_PIN 33 // Mode Selection Pin (DCS-BIOS/HID)
 #define HAS_HID_MODE_SELECTOR 1
+#define MODE_SWITCH_PIN 33 // Mode Selection Pin (DCS-BIOS/HID)
+
+// Define the Built-in LED if not defined
+#ifndef LED_BUILTIN
+  #define LED_BUILTIN 2
+#endif
 
 // How frequent you want to see the performance snapshot + profiling blocks? requires DEBUG_PERFORMANCE enabled
 #define PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS 30
@@ -62,3 +79,9 @@ static const char* WIFI_PASS = "4458e8c3c2";
 static const IPAddress DEBUG_REMOTE_IP(192, 168, 7, 163);
 static const uint16_t DEBUG_REMOTE_PORT = 4210;
 #endif
+
+// Fix for latest Adafruit TinyUSB with 3.2.0 Core
+extern "C" bool __atomic_test_and_set(volatile void* ptr, int memorder) __attribute__((weak));
+bool __atomic_test_and_set(volatile void* ptr, int memorder) {
+  return false; // pretend the lock was not already set
+}

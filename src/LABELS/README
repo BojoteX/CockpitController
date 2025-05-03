@@ -1,2 +1,0 @@
-The python script auto-generates DCSBIOSBridge.h file for you. Instead of maintaining
-a data structure with this info, we auto-generate it for efficiency using the Hornet JSON file from DCSBIOS. that way instead of having 50+ IntegerBuffer + callbacks, you do this in one go. This could theoretically scale up to thousands of LEDs with absolute 0 performance penalty and almost zero memory footprint

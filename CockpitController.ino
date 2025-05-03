@@ -1,11 +1,16 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
+// keep one CDC interface
+// #define CONFIG_TINYUSB_CDC_RX_BUFSIZE	1024
+// #define CONFIG_TINYUSB_CDC_TX_BUFSIZE	1024
+
 // -- Project Headers --
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
 #include <Wire.h>
+// #include "tusb.h"
 
 #if DEBUG_PERFORMANCE
 #include "src/PerfMonitor.h"
@@ -46,7 +51,9 @@ bool isModeSelectorDCS() {
 // For reference only
 void measureI2Cspeed(uint8_t deviceAddr) {
   uint32_t t0 = micros();
-  Wire.requestFrom(deviceAddr, 2);
+  // Wire.requestFrom(deviceAddr, 2);
+  Wire.requestFrom((uint8_t)deviceAddr, (uint8_t)2);
+
   while (Wire.available()) {
     Wire.read();
   }
@@ -68,6 +75,46 @@ bool panelExists(uint8_t targetAddr) {
     if (discoveredDevices[i].address == targetAddr) return true;
   }
   return false;
+}
+
+void checkHealth() {
+  // --- Internal SRAM (on-chip) ---
+  size_t free_int    = heap_caps_get_free_size         (MALLOC_CAP_INTERNAL);
+  size_t largest_int = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  float  frag_int    = free_int
+                     ? 100.0f * (1.0f - (float)largest_int / (float)free_int)
+                     : 0.0f;
+
+  // --- External PSRAM (if present) ---
+  size_t free_psram    = heap_caps_get_free_size         (MALLOC_CAP_SPIRAM);
+  size_t largest_psram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+  float  frag_psram    = free_psram
+                       ? 100.0f * (1.0f - (float)largest_psram / (float)free_psram)
+                       : 0.0f;
+
+  // --- USB-CDC buffer health ---
+  int tx_avail   = Serial.availableForWrite();
+  int rx_waiting = Serial.available();
+
+  // --- Print it all out ---
+  debugPrintf(
+    "SRAM free: %6u KB, largest: %6u KB, frag: %5.1f%%\n",
+    (unsigned)(free_int    / 1024),
+    (unsigned)(largest_int / 1024),
+    frag_int
+  );
+
+  debugPrintf(
+    "PSRAM free: %6u KB, largest: %6u KB, frag: %5.1f%%\n",
+    (unsigned)(free_psram    / 1024),
+    (unsigned)(largest_psram / 1024),
+    frag_psram
+  );
+
+  debugPrintf(
+    "CDC TX free: %4d bytes, RX pending: %4d bytes\n",
+    tx_avail, rx_waiting
+  );
 }
 
 // Arduino Setup Routine
@@ -96,15 +143,17 @@ void setup() {
   analogSetAttenuation(ADC_11db);
 
   // I2C Initialization
-  Wire.begin(SDA_PIN, SCL_PIN);
-
-  // ONLY if fast mode is selected. Very unstable, device reboots.
   #if PCA_FAST_MODE
-  Wire.setClock(400000);
+  Wire.begin(SDA_PIN, SCL_PIN, 400000);
+  #else
+  Wire.begin(SDA_PIN, SCL_PIN);
   #endif
 
   // Detect PCA Panels (They are disabled by default)
   scanConnectedPanels();
+
+  // Cap single I²C transactions to 1 ms (the above function will fail if the timeout is set before it executes)
+  // Wire.setTimeOut(1); 
 
   // Show PCA Panels we discovered
   debugPrintln("\n=== Cockpit Brain Controller Initialization ===");
@@ -119,9 +168,17 @@ void setup() {
   if(hasECM) debugPrintln("ECM Panel detected");
   if(hasMasterARM) debugPrintln("Master ARM Panel detected");
 
+/*
   debugPrintln("Initializing available PCA9555 Inputs...");
   for (const auto& [addr, label] : discoveredDevices) {
     initPCA9555AsInput(addr);
+  }
+*/
+
+  // Safe (C++11/C++14/C++17-safe) version
+  debugPrintln("Initializing available PCA9555 Inputs...");
+  for (uint8_t i = 0; i < discoveredDeviceCount; ++i) {
+    initPCA9555AsInput(discoveredDevices[i].address);
   }
 
   // Initialize PCA9555 Cached Port States explicitly to OFF (active-low LEDs)
@@ -185,10 +242,7 @@ void setup() {
   }
   debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
 
-  // Get a current memory usage snapshot
-  debugPrintf("Free heap: %u, Largest block: %u, Frag: %.1f%%\n",
-  ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT),
-  100.0 * (1.0 - (heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT) / (float)ESP.getFreeHeap())));
+  checkHealth();
 }
 
 // Arduino Loop Routine

@@ -19,6 +19,7 @@ void HIDManager_handleGuardedToggle(bool isPressed, const char* switchLabel, con
 void HIDManager_handleGuardedMomentary(bool isPressed, const char* buttonLabel, const char* coverLabel, bool deferSend = false);
 
 // ───── Utility / Maintenance ─────
-void HIDManager_commitDeferredReport();
+void HIDManager_commitDeferredReport(const char* deviceName);
 bool shouldPollMs(unsigned long &lastPoll);
 void HIDManager_keepAlive();
+void HIDManager_sendReport(const char* label, int32_t value = -1);

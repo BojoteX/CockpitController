@@ -1,7 +1,10 @@
 // CUtils.cpp
 // Centralized management for controllers
 
-#include <map>
+// #include <map>
+#include <vector>
+
+#include "../../../src/Globals.h"
 #include "CUtils.h"
 
 // All Controller Management is here
@@ -110,67 +113,6 @@ void printDiscoveredPanels() {
   debugPrintln("────────────────────────────────────────────\n");
 }
 
-
-/*
-
-std::map<uint8_t, String> discoveredDevices;
-// Scans the I2C bus and detects connected panels, storing results in map
-
-void scanConnectedPanels() {
-  discoveredDevices.clear();
-  delay(500); // PCA wake-up time
-
-  for (uint8_t addr = 0x03; addr <= 0x77; addr++) {
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
-      PanelID panel = getPanelID(addr);
-      String label;
-
-      switch (panel) {
-        case PanelID::ECM:    label = "ECM Panel"; break;
-        case PanelID::BRAIN:  label = "Brain / IRCool Panel"; break;
-        case PanelID::ARM:    label = "Master Arm Panel"; break;
-        default:              label = "Unknown Panel";
-      }
-
-      discoveredDevices[addr] = label + " at 0x" + String(addr, HEX);
-    }
-  }
-}
-
-// Prints a formatted list of discovered devices
-void printDiscoveredPanels() {
-  if (discoveredDevices.empty()) {
-    debugPrintln("No I2C devices found.");
-    return;
-  }
-
-  debugPrintln("\n🔎 === Discovered I2C Devices ===");
-  debugPrintln("📋 Address    | Device Description");
-  debugPrintln("──────────────|─────────────────────────────");
-
-  for (auto const& device : discoveredDevices) {
-    // Build full line into a String first
-    String line;
-    line += "📡 0x";
-    if (device.first < 0x10) line += "0";
-    line += String(device.first, HEX);
-    line.toUpperCase();
-
-    int spaces = 11 - line.length(); // pad to column
-    for (int i = 0; i < spaces; i++) line += " ";
-
-    line += " | ";
-    line += device.second;
-
-    debugPrintln(line.c_str());
-  }
-
-  debugPrintln("────────────────────────────────────────────\n");
-}
-
-*/
-
 // *****************************************************
 // Panel LED Detection for DEBUGING 
 // *****************************************************
@@ -179,37 +121,8 @@ void printDiscoveredPanels() {
 std::vector<int> displayedIndexes(panelLEDsCount);
 int displayedCount = 0;
 
-/*
-// LED selection menu
 void printLEDMenu() {
-  displayedCount = 0;
-  debugPrintln("\n--- LED Selection Menu ---\n");
-
-  int columns = 3;
-  int colWidth = 25;
-
-  for (int i = 0; i < panelLEDsCount; i++) {
-    // debugPrint(displayedCount);
-    debugPrintf("%d", displayedCount);
-
-    debugPrint(": ");
-    // debugPrint(panelLEDs[i].label);
-    debugPrintf("%s", panelLEDs[i].label);
-
-    int len = strlen(panelLEDs[i].label);
-    for (int s = 0; s < colWidth - len; s++) debugPrint(" ");
-
-    displayedIndexes[displayedCount++] = i;
-
-    if ((i + 1) % columns == 0 || i == panelLEDsCount - 1)
-      debugPrintln("");
-  }
-}
-*/
-
-void printLEDMenu() {
-  displayedCount = 0;
-  
+  displayedCount = 0;  
   constexpr int columns = 3;
   constexpr int colWidth = 25;
   constexpr int bufSize = 4096;
@@ -234,13 +147,18 @@ void printLEDMenu() {
   }
 
   buffer[cursor] = '\0'; // Null-terminate
-  debugPrint(buffer);
+  Serial.print(buffer);
+
+  #if DEBUG_USE_WIFI
+  // #include "WiFiDebug.h"
+  wifiDebugPrintln("See serial console for LED test");
+  #endif
 }
 
 
 void handleLEDSelection() {
   while (true) {
-    debugPrintln("Enter LED number to activate (or press Enter to exit):");
+    Serial.println("Enter LED number to activate (or press Enter to exit):");
 
     while (!Serial.available());
     String input = Serial.readStringUntil('\n');
@@ -250,24 +168,22 @@ void handleLEDSelection() {
     int userSelection = input.toInt();
     if (userSelection >= 0 && userSelection < displayedCount) {
       int actualIndex = displayedIndexes[userSelection];
-      debugPrint("Activating LED: ");
-      // debugPrintln(panelLEDs[actualIndex].label);
-      debugPrintf("%s\n", panelLEDs[actualIndex].label);
+      Serial.print("Activating LED: ");
+      Serial.printf("%s\n", panelLEDs[actualIndex].label);
 
       setLED(panelLEDs[actualIndex].label, true, 100);
       delay(5000);
       setLED(panelLEDs[actualIndex].label, false, 0);
 
-      debugPrint("Deactivated LED: ");
-      // debugPrintln(panelLEDs[actualIndex].label);
-      debugPrintf("%s\n", panelLEDs[actualIndex].label);
+      Serial.print("Deactivated LED: ");
+      Serial.printf("%s\n", panelLEDs[actualIndex].label);
 
       // Clear the screen
-      debugPrintf("\033[2J\033[H");
+      Serial.printf("\033[2J\033[H");
 
       printLEDMenu();
     } else {
-      debugPrintln("Invalid selection or unsupported LED.");
+      Serial.println("Invalid selection or unsupported LED.");
     }
   }
 }

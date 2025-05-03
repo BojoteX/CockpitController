@@ -1,0 +1,21 @@
+2025-05-02 15:49:28,293 INFO: Opened COM69 at 250000 baud with DTR disabled.
+2025-05-02 15:49:28,296 ERROR: Failed to bind UDP socket: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted
+Traceback (most recent call last):
+  File "C:\Users\jaltu\OneDrive\Documents\Arduino\CockpitController\ReplayData\serial_terminal.py", line 58, in main
+    sock.bind(('0.0.0.0', udp_port))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted
+2025-05-02 15:50:12,392 INFO: Opened COM69 at 250000 baud with DTR disabled.
+2025-05-02 15:50:12,394 ERROR: Failed to bind UDP socket: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted
+Traceback (most recent call last):
+  File "C:\Users\jaltu\OneDrive\Documents\Arduino\CockpitController\ReplayData\serial_terminal.py", line 58, in main
+    sock.bind(('0.0.0.0', udp_port))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted
+2025-05-02 15:50:32,859 INFO: Opened COM69 at 250000 baud with DTR disabled.
+2025-05-02 15:50:32,862 ERROR: Failed to bind UDP socket: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted
+Traceback (most recent call last):
+  File "C:\Users\jaltu\OneDrive\Documents\Arduino\CockpitController\ReplayData\serial_terminal.py", line 58, in main
+    sock.bind(('0.0.0.0', udp_port))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [WinError 10048] Only one usage of each socket address (protocol/network address/port) is normally permitted

@@ -11,7 +11,7 @@ void DCSBIOS_init();
 void DCSBIOS_loop();
 
 // ───── Command Sender ─────
-void sendDCSBIOSCommand(const char* label, uint16_t value);
+void sendDCSBIOSCommand(const char* label, uint16_t value, bool force);
 
 // ───── Hooks ─────
 void onAircraftName(char* str);

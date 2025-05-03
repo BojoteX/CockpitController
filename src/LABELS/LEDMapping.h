@@ -3,12 +3,12 @@
 
 // Embedded LEDMapping structure and enums
 enum LEDDeviceType {
-  DEVICE_NONE,
   DEVICE_GN1640T,
+  DEVICE_WS2812,
   DEVICE_PCA9555,
   DEVICE_TM1637,
+  DEVICE_NONE,
   DEVICE_GPIO,
-  DEVICE_WS2812,
 };
 
 struct LEDMapping {
@@ -199,12 +199,8 @@ static const LEDHashEntry ledHashTable[109] = {
   {"LH_ADV_XMIT", &panelLEDs[30]},
 };
 
-// djb2 hash function
-constexpr uint16_t ledHash(const char* str) {
-  uint16_t hash = 5381;
-  while (*str) { hash = ((hash << 5) + hash) + *str++; }
-  return hash;
-}
+// Reuse shared recursive hash implementation
+constexpr uint16_t ledHash(const char* s) { return labelHash(s); }
 
 // findLED lookup
 inline const LEDMapping* findLED(const char* label) {

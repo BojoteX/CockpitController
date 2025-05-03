@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include "src/Globals.h"
 #include "src/MasterARMPanel.h"
 #include "src/HIDManager.h"
@@ -14,7 +13,7 @@ enum Port0Bits {
 };
 
 void MasterARM_init() {
-  delay(50);  // Asegura que el PCA esté inicializado antes de leer
+  // delay(50);  // Asegura que el PCA esté inicializado antes de leer
 
   byte port0, port1;
   if (readPCA9555(MASTERARM_PCA_ADDR, port0, port1)) {
@@ -31,11 +30,11 @@ void MasterARM_init() {
     HIDManager_setNamedButton("MASTER_MODE_AA",     true, !bitRead(port0, MASTER_ARM_AA));
     HIDManager_setNamedButton("FIRE_EXT_BTN",       true, !bitRead(port0, MASTER_ARM_DISCH));
 
-    HIDManager_commitDeferredReport();
+    HIDManager_commitDeferredReport("Master ARM Panel");
 
-    debugPrintf("✅ Initialized PCA Panel 0X%02X\n",MASTERARM_PCA_ADDR);
+    debugPrintf("✅ Initialized Master ARM Panel\n",MASTERARM_PCA_ADDR);
   } else {
-    debugPrintf("❌ Could not initialize PCA Panel 0X%02X\n",MASTERARM_PCA_ADDR);
+    debugPrintf("❌ Could not initialize Master ARM Panel\n",MASTERARM_PCA_ADDR);
   }
 }
 

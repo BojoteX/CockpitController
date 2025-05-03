@@ -211,13 +211,19 @@ static const SelectorEntry SelectorMap[] = {
     { "ECM_MODE_SW_STBY","ECM_MODE_SW",1,"selector",3 },
     { "ECM_MODE_SW_OFF","ECM_MODE_SW",0,"selector",3 },
     { "FIRE_EXT_BTN","FIRE_EXT_BTN",1,"momentary",0 },
+    { "CHART_DIMMER","CHART_DIMMER",65535,"analog",0 },
     { "COCKKPIT_LIGHT_MODE_SW_NVG","COCKKPIT_LIGHT_MODE_SW",2,"selector",4 },
     { "COCKKPIT_LIGHT_MODE_SW_NITE","COCKKPIT_LIGHT_MODE_SW",1,"selector",4 },
     { "COCKKPIT_LIGHT_MODE_SW_DAY","COCKKPIT_LIGHT_MODE_SW",0,"selector",4 },
+    { "CONSOLES_DIMMER","CONSOLES_DIMMER",65535,"analog",0 },
+    { "FLOOD_DIMMER","FLOOD_DIMMER",65535,"analog",0 },
+    { "INST_PNL_DIMMER","INST_PNL_DIMMER",65535,"analog",0 },
     { "LIGHTS_TEST_SW_TEST","LIGHTS_TEST_SW",1,"selector",5 },
     { "LIGHTS_TEST_SW_OFF","LIGHTS_TEST_SW",0,"selector",5 },
+    { "WARN_CAUTION_DIMMER","WARN_CAUTION_DIMMER",65535,"analog",0 },
     { "LEFT_FIRE_BTN","LEFT_FIRE_BTN",1,"momentary",0 },
     { "LEFT_FIRE_BTN_COVER","LEFT_FIRE_BTN_COVER",1,"momentary",0 },
+    { "HMD_OFF_BRT","HMD_OFF_BRT",65535,"analog",0 },
     { "IR_COOL_SW_ORIDE","IR_COOL_SW",2,"selector",6 },
     { "IR_COOL_SW_NORM","IR_COOL_SW",1,"selector",6 },
     { "IR_COOL_SW_OFF","IR_COOL_SW",0,"selector",6 },
@@ -249,3 +255,40 @@ TrackedStateEntry trackedStates[] = {
     { "SPIN_RECOVERY_COVER", false },
 };
 const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);
+
+// Unified Command History Table (used for throttling and optional keep-alive)
+struct CommandHistoryEntry {
+    const char* label;
+    uint16_t lastValue;
+    unsigned long lastSendTime;
+    bool isSelector;
+};
+
+static CommandHistoryEntry commandHistory[] = {
+    { "APU_FIRE_BTN", 0, 0, false },
+    { "AUX_REL_SW", 0, 0, true },
+    { "CHART_DIMMER", 0, 0, false },
+    { "CMSD_DISPENSE_SW", 0, 0, true },
+    { "CMSD_JET_SEL_BTN", 0, 0, false },
+    { "COCKKPIT_LIGHT_MODE_SW", 0, 0, true },
+    { "CONSOLES_DIMMER", 0, 0, false },
+    { "ECM_MODE_SW", 0, 0, true },
+    { "FIRE_EXT_BTN", 0, 0, false },
+    { "FLOOD_DIMMER", 0, 0, false },
+    { "HMD_OFF_BRT", 0, 0, false },
+    { "INST_PNL_DIMMER", 0, 0, false },
+    { "IR_COOL_SW", 0, 0, true },
+    { "LEFT_FIRE_BTN", 0, 0, false },
+    { "LEFT_FIRE_BTN_COVER", 0, 0, false },
+    { "LIGHTS_TEST_SW", 0, 0, true },
+    { "MASTER_ARM_SW", 0, 0, true },
+    { "MASTER_CAUTION_RESET_SW", 0, 0, false },
+    { "MASTER_MODE_AA", 0, 0, false },
+    { "MASTER_MODE_AG", 0, 0, false },
+    { "RIGHT_FIRE_BTN", 0, 0, false },
+    { "RIGHT_FIRE_BTN_COVER", 0, 0, false },
+    { "SPIN_RECOVERY_COVER", 0, 0, false },
+    { "SPIN_RECOVERY_SW", 0, 0, true },
+    { "WARN_CAUTION_DIMMER", 0, 0, false },
+};
+static const size_t commandHistorySize = sizeof(commandHistory)/sizeof(CommandHistoryEntry);
