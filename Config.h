@@ -7,16 +7,27 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Required for Descriptor handling
+#define USB_VID		        0xCAFE
+#define USB_PID		        0xFEE2
+#define USB_MANUFACTURER  "Bojote"
+#define USB_PRODUCT       "F/A-18C Cockpit Controller"
+#define USB_SERIAL        "SN-ZZ18-99"
+#define USB_LANG_ID       0x0409  // English (US)
+#define USB_IF_CDC_NAME   USB_PRODUCT
+#define USB_IF_HID_NAME   USB_PRODUCT
+#define USB_CFG_NAME      USB_PRODUCT
+
 // There is really no need for this, but if for you, ensuring cockpit sync is a top priority, use it. The design and architecture of this 
 // program is already fault-tolerant and throttles ALL sends to match DCS_UPDATE_RATE_HZ and avoid skipping commands. Like a PRO LEVEL
 // cockpit sim. 
-#define ENABLE_DCS_COMMAND_KEEPALIVE  0             // Explained above
+#define ENABLE_DCS_COMMAND_KEEPALIVE  1             // Explained above
 #define ENABLE_HID_KEEPALIVE          1             // Same, but for HID
 
 // Self explanatory, don't change if you don't know what you are doing
 #define DCS_UPDATE_RATE_HZ            30            // Change only if DCSBIOS ever changes its update freq (highly unlinkely)
 #define HID_REPORT_RATE_HZ            60            // Max 60Hz HID report rate to avoid spamming the CDC Endpoint / USB
-#define POLLING_RATE_HZ              250            // Panel and HID polling rate (125, 250, 500 and 1000 are all valid, 250 is default)
+#define POLLING_RATE_HZ              250            // Panel and HID polling rate in Hz (125, 250, 500 Hz)
 #define HID_KEEP_ALIVE_INTERVAL_MS  1000            // Resend unchanged HID report after 1s
 #define DCS_KEEP_ALIVE_INTERVAL_MS  1000            // Re-send selector command every 1s if unchanged
 #define DCS_KEEPALIVE_POLL_INTERVAL POLLING_RATE_HZ // How often to check for keep-alive conditions

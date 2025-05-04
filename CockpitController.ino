@@ -149,11 +149,14 @@ void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
   #endif
 
+  // Give plenty of time for panel detection
+  Wire.setTimeOut(500); 
+
   // Detect PCA Panels (They are disabled by default)
   scanConnectedPanels();
 
-  // Cap single I²C transactions to 1 ms (the above function will fail if the timeout is set before it executes)
-  // Wire.setTimeOut(1); 
+  // Cap single I²C transactions to 1 ms
+  Wire.setTimeOut(1); 
 
   // Show PCA Panels we discovered
   debugPrintln("\n=== Cockpit Brain Controller Initialization ===");

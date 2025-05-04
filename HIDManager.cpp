@@ -5,18 +5,8 @@
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
 
-/*
-extern "C" {
-
-// Called whenever the host toggles DTR or RTS.
-// We log it and then immediately return—no attempts to re-assert lines.
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
-  debugPrintf("[CDC] line_state itf=%u DTR=%d RTS=%d\n",
-              (unsigned)itf, (int)dtr, (int)rts);
-}
-
-} // extern "C"
-*/
+// Flow-control flag: only send a new report once the previous one really left (not implemented for HID, only CDC)
+static volatile bool hidTxReady = true;
 
 #include <USBHID.h>
 // Define HID + Load Descriptors
@@ -41,17 +31,6 @@ void buildHIDGroupBitmasks() {
       }
   }
 }
-
-// Required for Descriptor handling
-#define USB_LANG_ID       0x0409  // English (US)
-#define USB_VID		  0xCAFE
-#define USB_PID		  0xFCC2
-#define USB_MANUFACTURER  "Bojote"
-#define USB_PRODUCT       "Cockpit Controller"
-#define USB_SERIAL        "SN-ZZ18-99"
-#define USB_IF_CDC_NAME   USB_PRODUCT
-#define USB_IF_HID_NAME   USB_PRODUCT
-#define USB_CFG_NAME      USB_PRODUCT
 
 // String Descriptor Helper
 static uint16_t _desc_str_buf[32];
@@ -85,57 +64,58 @@ extern "C" {
   }
 }
 
-void checkTinyUSBBuffers() {
-  Serial.println("=== TinyUSB CDC Runtime FIFO Check ===");
-
-  // Check CDC TX FIFO buffer size explicitly
-  uint32_t tx_buf_avail = tud_cdc_write_available();
-  Serial.printf("CDC TX FIFO Available: %u bytes\n", tx_buf_avail);
-
-  // Fill TX FIFO explicitly to verify its actual size
-  Serial.println("Filling CDC TX FIFO to verify size...");
-  uint32_t tx_filled = 0;
-  while (tud_cdc_write_available()) {
-    tud_cdc_write_char(0x00);  // dummy data
-    tx_filled++;
-  }
-  tud_cdc_write_flush(); // explicitly flush
-
-  Serial.printf("\nTotal TX FIFO bytes actually filled: %u\n", tx_filled);
-
-  // Verify RX FIFO indirectly (less straightforward, but we can infer it)
-  uint32_t rx_fifo_used = tud_cdc_available();
-  Serial.printf("CDC RX FIFO Currently Used: %u bytes\n", rx_fifo_used);
- 
-  Serial.println("=======================================");
-}
-
-// Log HID events
-static void hidEventLogger(void* /*arg*/,
-                           esp_event_base_t /*base*/,
-                           int32_t id,
-                           void* event_data)
+// —————————————————————————————————————————————————————————————
+// Handler for HID Set_Protocol
+// —————————————————————————————————————————————————————————————
+static void hidSetProtocolHandler(void*            arg,
+                                  esp_event_base_t base,
+                                  int32_t          id,
+                                  void*            event_data)
 {
     auto* d = (arduino_usb_hid_event_data_t*)event_data;
-    switch(id) {
-      case ARDUINO_USB_HID_SET_PROTOCOL_EVENT:
-        debugPrintf("[HID Event] Set_Protocol itf=%u proto=%u\n",
-                    (unsigned)d->instance,
-                    (unsigned)d->set_protocol.protocol);
-        break;
+    debugPrintf("[HID EVENT] SET_PROTOCOL  itf=%u → %s\n",
+                (unsigned)d->instance,
+                d->set_protocol.protocol ? "REPORT" : "BOOT");
+}
 
-      case ARDUINO_USB_HID_SET_IDLE_EVENT:
-        debugPrintf("[HID Event] Set_Idle     itf=%u idle_rate=%u\n",
-                    (unsigned)d->instance,
-                    (unsigned)d->set_idle.idle_rate);
-        break;
+// —————————————————————————————————————————————————————————————
+// Handler for HID Set_Idle
+// —————————————————————————————————————————————————————————————
+static void hidSetIdleHandler(void*            arg,
+                              esp_event_base_t base,
+                              int32_t          id,
+                              void*            event_data)
+{
+    auto* d = (arduino_usb_hid_event_data_t*)event_data;
+    debugPrintf("[HID EVENT] SET_IDLE      itf=%u rate=%u×4ms\n",
+                (unsigned)d->instance,
+                (unsigned)d->set_idle.idle_rate);
+}
 
-      default:
-        debugPrintf("[HID Event] id=%d itf=%u\n",
-                    id,
-                    (unsigned)d->instance);
-        break;
+void setupHIDEvents() {
+    // Subscribe individually
+    HID.onEvent(ARDUINO_USB_HID_SET_PROTOCOL_EVENT, hidSetProtocolHandler);
+    HID.onEvent(ARDUINO_USB_HID_SET_IDLE_EVENT,     hidSetIdleHandler);
+}
+
+/// Returns true iff the USB HID interface is up and its IN-endpoint is ready
+/// to accept a new report.  You can call this instead of a raw tud_hid_ready().
+static bool HID_can_send_report() {
+    // 1) Are we fully enumerated (host-side mount complete)?
+    if ( !tud_mounted() ) {
+        // not yet enumerated → no traffic
+        return false;
     }
+    // 2) Give TinyUSB’s background task a chance to run
+    yield();
+    // 3) Check the HID IN endpoint is free
+    if ( !tud_hid_ready() ) {
+        // still busy sending last report
+        return false;
+    }
+    // 4) Optionally yield again if you want extra breathing room
+    // yield();
+    return true;
 }
 
 // Initialize USB HID
@@ -148,8 +128,7 @@ void HIDManager_begin() {
   USB.begin();
   #endif
 
-  // Serial.enableReboot(false);
-  // Serial.setRxBufferSize(16384);
+  Serial.setRxBufferSize(16384);
   Serial.begin();
   delay(1000);
 
@@ -163,12 +142,11 @@ void HIDManager_begin() {
   }
 
   // Subscribe to HID events
-  HID.onEvent(hidEventLogger);  // catch-all
+  setupHIDEvents();
 
   // Load input bitmasks
   buildHIDGroupBitmasks();
 
-  // checkTinyUSBBuffers();
 }
 
 void HIDManager_loop() {
@@ -185,7 +163,7 @@ void HIDManager_loop() {
 
 static unsigned long lastHIDReportMillis[64] = {0};
 void HIDManager_sendReport(const char* label, int32_t value) {
-    if (!HID.ready()) return;
+    if (!HID_can_send_report()) return;
 
     static uint8_t lastSent[sizeof(report.raw)] = {0};
     static unsigned long lastSendTime = 0;
@@ -200,9 +178,11 @@ void HIDManager_sendReport(const char* label, int32_t value) {
     if (now - lastSendTime < HID_SEND_INTERVAL_MS) return;
 
     // Send report
+    hidTxReady = false;
     gp.sendReport(report.raw, sizeof(report.raw));
     memcpy(lastSent, report.raw, sizeof(report.raw));
     lastSendTime = now;
+    yield();
 
     // Debug output
     if (label) {
@@ -292,13 +272,15 @@ void HIDManager_keepAlive() {
     static uint8_t lastKeepAliveReport[sizeof(report.raw)] = {0};
     constexpr uint32_t KEEP_ALIVE_INTERVAL_MS = HID_KEEP_ALIVE_INTERVAL_MS;
 
-    if (!HID.ready()) return;
+    if (!HID_can_send_report()) return;
 
     // Only send if report is unchanged AND it's been over 1 second
     if (memcmp(lastKeepAliveReport, report.raw, sizeof(report.raw)) == 0) {
         if (millis() - lastKeepAliveMillis >= KEEP_ALIVE_INTERVAL_MS) {
-            gp.sendReport(report.raw, sizeof(report.raw));
-            lastKeepAliveMillis = millis();
+          hidTxReady = false;
+          gp.sendReport(report.raw, sizeof(report.raw));
+          lastKeepAliveMillis = millis();
+          yield();
         }
     } else {
         // New report state → reset timer and store state
