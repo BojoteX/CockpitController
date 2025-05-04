@@ -21,7 +21,7 @@
 // There is really no need for this, but if for you, ensuring cockpit sync is a top priority, use it. The design and architecture of this 
 // program is already fault-tolerant and throttles ALL sends to match DCS_UPDATE_RATE_HZ and avoid skipping commands. Like a PRO LEVEL
 // cockpit sim. 
-#define ENABLE_DCS_COMMAND_KEEPALIVE  1             // Explained above
+#define ENABLE_DCS_COMMAND_KEEPALIVE  0             // Explained above
 #define ENABLE_HID_KEEPALIVE          1             // Same, but for HID
 
 // Self explanatory, don't change if you don't know what you are doing
@@ -31,6 +31,8 @@
 #define HID_KEEP_ALIVE_INTERVAL_MS  1000            // Resend unchanged HID report after 1s
 #define DCS_KEEP_ALIVE_INTERVAL_MS  1000            // Re-send selector command every 1s if unchanged
 #define DCS_KEEPALIVE_POLL_INTERVAL POLLING_RATE_HZ // How often to check for keep-alive conditions
+
+#define SERIAL_RX_BUFFER_SIZE       4096            // Your CDC/Serial receive buffer
 
 // Set to 1 to enable 400MHz PCA Bus FAST MODE   
 #define PCA_FAST_MODE         1   
@@ -45,7 +47,7 @@
 // Simulate a loopback DCS stream to check your panel is working and debug via Serial
 #define IS_REPLAY 0
 
-// Add verbosity and lots of information on what your device is doing, when DEBUG_ENABLED = 0 you wont see any output
+// Add verbosity and lots of information on what your device is doing, dont use for production, performance heavy
 #define DEBUG_ENABLED 0
 
 // Enables always-on output regardless of DEBUG without the performance penalty of DEBUG_ENABLED
@@ -70,6 +72,17 @@
 #define HAS_HID_MODE_SELECTOR 1
 #define MODE_SWITCH_PIN 33 // Mode Selection Pin (DCS-BIOS/HID)
 
+// Global GPIO centralized PIN assignments
+#define SDA_PIN 8 // I2C PCA9555 Data Pin
+#define SCL_PIN 9 // I2C PCA9555 Clock Pin
+#define GLOBAL_CLK_PIN 37 // Clock Pin
+#define CA_DIO_PIN 36 // Caution Advisory DIO Pin
+#define LA_DIO_PIN 39 // Left Annunciator DIO Pin
+#define LA_CLK_PIN GLOBAL_CLK_PIN // Left Annunciator Clock Pin
+#define RA_DIO_PIN 40 // Right Annunciator DIO Pin
+#define RA_CLK_PIN GLOBAL_CLK_PIN // right Annunciator Clock Pin
+#define LOCKSHOOT_DIO_PIN 35 // Lock-Shoot Indicator DIO Pin
+
 // Define the Built-in LED if not defined
 #ifndef LED_BUILTIN
   #define LED_BUILTIN 2
@@ -91,8 +104,10 @@ static const IPAddress DEBUG_REMOTE_IP(192, 168, 7, 163);
 static const uint16_t DEBUG_REMOTE_PORT = 4210;
 #endif
 
-// Fix for latest Adafruit TinyUSB with 3.2.0 Core
+/*
+// Fix for latest Adafruit TinyUSB with 3.2.0 Core. We are NOT using Adafruit's Library, this is just for testing
 extern "C" bool __atomic_test_and_set(volatile void* ptr, int memorder) __attribute__((weak));
 bool __atomic_test_and_set(volatile void* ptr, int memorder) {
   return false; // pretend the lock was not already set
 }
+*/

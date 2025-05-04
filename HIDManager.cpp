@@ -98,8 +98,8 @@ void setupHIDEvents() {
     HID.onEvent(ARDUINO_USB_HID_SET_IDLE_EVENT,     hidSetIdleHandler);
 }
 
-/// Returns true iff the USB HID interface is up and its IN-endpoint is ready
-/// to accept a new report.  You can call this instead of a raw tud_hid_ready().
+/// Returns true if the USB HID interface is up and its IN-endpoint is ready
+/// to accept a new report.
 static bool HID_can_send_report() {
     // 1) Are we fully enumerated (host-side mount complete)?
     if ( !tud_mounted() ) {
@@ -109,12 +109,12 @@ static bool HID_can_send_report() {
     // 2) Give TinyUSB’s background task a chance to run
     yield();
     // 3) Check the HID IN endpoint is free
-    if ( !tud_hid_ready() ) {
+    if ( !HID.ready() ) {
         // still busy sending last report
         return false;
     }
-    // 4) Optionally yield again if you want extra breathing room
-    // yield();
+    // 4) yield again if you want extra breathing room
+    yield();
     return true;
 }
 
@@ -123,14 +123,14 @@ void HIDManager_begin() {
 
   // Load USB Stack
   #if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
-  USB.VID(USB_VID);                                // Set Vendor ID&#8203;:contentReference[oaicite:6]{index=6}
-  USB.PID(USB_PID);                                // Set Product ID
+  USB.VID(USB_VID); // Set Vendor ID
+  USB.PID(USB_PID); // Set Product ID
   USB.begin();
   #endif
 
-  Serial.setRxBufferSize(16384);
-  Serial.begin();
-  delay(1000);
+  Serial.setRxBufferSize(SERIAL_RX_BUFFER_SIZE);
+  Serial.begin(250000);
+  delay(3000);
 
   // Init DCSBIOS
   DCSBIOS_init();
@@ -194,6 +194,7 @@ void HIDManager_sendReport(const char* label, int32_t value) {
 }
 
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin) {
+    // TODO: Implement passing an axis, right now only rx implemented. 
     constexpr int DEADZONE_LOW = 60;
     constexpr int DEADZONE_HIGH = 4050;
     constexpr int THRESHOLD = 64;  

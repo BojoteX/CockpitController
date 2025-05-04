@@ -1,16 +1,11 @@
 // Cockpit Brain Controller Firmware by Jesus "Bojote" Altuve
 // Dynamic I2C panel detection and configurable panel initialization
 
-// keep one CDC interface
-// #define CONFIG_TINYUSB_CDC_RX_BUFSIZE	1024
-// #define CONFIG_TINYUSB_CDC_TX_BUFSIZE	1024
-
 // -- Project Headers --
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
 #include <Wire.h>
-// #include "tusb.h"
 
 #if DEBUG_PERFORMANCE
 #include "src/PerfMonitor.h"
@@ -19,10 +14,6 @@
 #if DEBUG_USE_WIFI
 #include "src/WiFiDebug.h"
 #endif
-
-// -- GPIO Pin Configuration --
-#define SDA_PIN 8                      // I2C Data Pin
-#define SCL_PIN 9                      // I2C Clock Pin
 
 // PCA Only panels will be autodetected
 bool hasBrain     = false; // Brain Controller PCB (e.g TEK Brain uses PCA9555 0x26 for IRCool) autodetected by our program.
@@ -51,7 +42,6 @@ bool isModeSelectorDCS() {
 // For reference only
 void measureI2Cspeed(uint8_t deviceAddr) {
   uint32_t t0 = micros();
-  // Wire.requestFrom(deviceAddr, 2);
   Wire.requestFrom((uint8_t)deviceAddr, (uint8_t)2);
 
   while (Wire.available()) {
@@ -92,10 +82,6 @@ void checkHealth() {
                        ? 100.0f * (1.0f - (float)largest_psram / (float)free_psram)
                        : 0.0f;
 
-  // --- USB-CDC buffer health ---
-  int tx_avail   = Serial.availableForWrite();
-  int rx_waiting = Serial.available();
-
   // --- Print it all out ---
   debugPrintf(
     "SRAM free: %6u KB, largest: %6u KB, frag: %5.1f%%\n",
@@ -109,11 +95,6 @@ void checkHealth() {
     (unsigned)(free_psram    / 1024),
     (unsigned)(largest_psram / 1024),
     frag_psram
-  );
-
-  debugPrintf(
-    "CDC TX free: %4d bytes, RX pending: %4d bytes\n",
-    tx_avail, rx_waiting
   );
 }
 
@@ -149,13 +130,13 @@ void setup() {
   Wire.begin(SDA_PIN, SCL_PIN);
   #endif
 
-  // Give plenty of time for panel detection
+  // Temporary increase timeout to provide plenty of time for panel detection
   Wire.setTimeOut(500); 
 
   // Detect PCA Panels (They are disabled by default)
   scanConnectedPanels();
 
-  // Cap single I²C transactions to 1 ms
+  // Once panels detected, bring timeout down, cap I²C bus timeout at 1 ms (aggresive)
   Wire.setTimeOut(1); 
 
   // Show PCA Panels we discovered
@@ -171,14 +152,7 @@ void setup() {
   if(hasECM) debugPrintln("ECM Panel detected");
   if(hasMasterARM) debugPrintln("Master ARM Panel detected");
 
-/*
-  debugPrintln("Initializing available PCA9555 Inputs...");
-  for (const auto& [addr, label] : discoveredDevices) {
-    initPCA9555AsInput(addr);
-  }
-*/
-
-  // Safe (C++11/C++14/C++17-safe) version
+  // Init PCA Inputs
   debugPrintln("Initializing available PCA9555 Inputs...");
   for (uint8_t i = 0; i < discoveredDeviceCount; ++i) {
     initPCA9555AsInput(discoveredDevices[i].address);
@@ -220,21 +194,29 @@ void setup() {
   debugPrintln("Initializing Panel states....");
   initializePanels();
 
+  // Run before initializing Display/LED panels
+  if (GN1640_detect(GLOBAL_CLK_PIN, CA_DIO_PIN)) {
+    debugPrint("Caution Advisory is present");
+  }
+  else {
+    debugPrint("Caution Advisory NOT detected");
+  }
+
   // Initializes your LEDs / Displays etc.
   debugPrintln("Initializing LEDs...");
   initializeLEDs(activePanels, panelCount);
   
-  // When TEST_LEDS is active device enters a menu selection to test LEDs individually.
+  // When TEST_LEDS is active device enters a menu selection to test LEDs individually. You activate them via Serial Console
   #if TEST_LEDS
     printLEDMenu();
     handleLEDSelection();
     debugPrintln("Exiting LED selection menu. Continuing execution...");
   #endif 
 
-  // Uses a header object derived from dcsbios_data.json (created by a python script) to simulate DCS traffic
+  // Uses a header object (created from dcsbios_data.json) to simulate DCS traffic internally WITHOUT using your serial port (great for debugging) 
   #if IS_REPLAY
-  // Begin simulated loop
-  DcsbiosProtocolReplay();
+  // Begin simulated loop. 
+  runReplayWithPrompt();
   #endif
 
   if(DEBUG) {
@@ -245,6 +227,7 @@ void setup() {
   }
   debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
 
+  // Shows available mem/heap frag etc.
   checkHealth();
 }
 

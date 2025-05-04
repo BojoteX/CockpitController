@@ -51,7 +51,6 @@ extern bool DEBUG;
 extern bool debugToSerial;   // true = allow Serial prints
 extern bool debugToUDP;      // true = allow UDP prints
 
-
 #ifdef ESP_ARDUINO_VERSION_MAJOR
   #if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
     #include <driver/ledc.h>

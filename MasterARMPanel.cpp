@@ -54,7 +54,7 @@ void MasterARM_loop() {
     );
   }
 
-  // Momentary buttons (like JETT_SEL)
+  // Momentary buttons
   if (bitRead(prevMasterPort0, MASTER_ARM_AG) != bitRead(port0, MASTER_ARM_AG)) {
     HIDManager_setNamedButton("MASTER_MODE_AG", false, !bitRead(port0, MASTER_ARM_AG));
   }

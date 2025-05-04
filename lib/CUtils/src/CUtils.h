@@ -7,17 +7,9 @@
 #define CUTILS_H
 
 typedef uint8_t byte;
+#include "../../../Config.h"
 #include "../../../src/LABELS/InputMapping.h"
 #include "../../../src/LEDControl.h"
-
-// Pines físicos compartidos entre dispositivos
-#define GLOBAL_CLK_PIN 37
-#define CA_DIO_PIN 36
-#define LA_DIO_PIN 39
-#define LA_CLK_PIN GLOBAL_CLK_PIN
-#define RA_DIO_PIN 40
-#define RA_CLK_PIN GLOBAL_CLK_PIN
-#define LOCKSHOOT_DIO_PIN 35
 
 // GPIO helpers
 void GPIO_setAllLEDs(bool state);
@@ -103,6 +95,7 @@ void GN1640_testPattern();
 void GN1640_command(uint8_t cmd);
 void GN1640_write(uint8_t column, uint8_t value);
 void GN1640_setAllLEDs(bool state);
+bool GN1640_detect(uint8_t clkPin, uint8_t dioPin);
 
 // PCA Utils
 void PCA9555_setAllLEDs(bool state);
@@ -135,5 +128,8 @@ void scanConnectedPanels();
 void printDiscoveredPanels();
 void handleLEDSelection();
 void printLEDMenu();
+
+// Misc
+void runReplayWithPrompt();
 
 #endif // CUTILS_H

@@ -197,3 +197,22 @@ void GN1640_tick() {
 
   refreshPending = false;
 }
+
+// Try to detect if device is present.
+bool GN1640_detect(uint8_t clkPin, uint8_t dioPin) {
+  // 1) Drive DIO as output and issue a harmless command to wake the device
+  pinMode(dioPin, OUTPUT);
+  GN1640_startCondition();
+  GN1640_sendByte(0x44);         // fixed-address mode command
+  // 2) Switch DIO to input with pull-up so we can sense ACK
+  pinMode(dioPin, INPUT_PULLUP);
+  // 3) Pulse CLK high to sample the ACK bit
+  digitalWrite(clkPin, HIGH);
+  delayMicroseconds(500);        // matches sendByte timing
+  bool ack = (digitalRead(dioPin) == LOW);
+  digitalWrite(clkPin, LOW);
+  // 4) Restore bus to known idle and back to output
+  GN1640_stopCondition();
+  pinMode(dioPin, OUTPUT);
+  return ack;
+}

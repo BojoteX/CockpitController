@@ -1,10 +1,7 @@
 // CUtils.cpp
 // Centralized management for controllers
 
-// #include <map>
 #include <vector>
-
-#include "../../../src/Globals.h"
 #include "CUtils.h"
 
 // All Controller Management is here
@@ -20,31 +17,6 @@
 //
 //
 // ********************************************************
-
-/*
-void setPanelAllLEDs(const char* panelPrefix, bool state) {
-    for (int i = 0; i < panelLEDsCount; i++) {
-        if (strncmp(panelLEDs[i].label, panelPrefix, strlen(panelPrefix)) == 0 &&
-            panelLEDs[i].deviceType != DEVICE_NONE) {
-            setLED(panelLEDs[i].label, state, state ? 100 : 0);
-        }
-    }
-}
-
-void setAllPanelsLEDs(bool state) {
-    PCA9555_allLEDsByAddress(0x22, state);
-    PCA9555_allLEDsByAddress(0x5B, state);
-    GPIO_setAllLEDs(state);
-    TM1637_setPanelAllLEDs(RA_Device, state);
-    TM1637_setPanelAllLEDs(LA_Device, state);
-    GN1640_setAllLEDs(state);
-    WS2812_setAllLEDs(state);
-}
-*/
-
-// *****************************************************
-// Panel Overrides
-// *****************************************************
 
 enum class PanelID : uint8_t {
   ECM    	= 0x22,
@@ -71,7 +43,6 @@ struct I2CDeviceInfo {
 
 I2CDeviceInfo discoveredDevices[MAX_DEVICES];
 uint8_t discoveredDeviceCount = 0;
-
 
 void scanConnectedPanels() {
   discoveredDeviceCount = 0;
@@ -155,7 +126,6 @@ void printLEDMenu() {
   #endif
 }
 
-
 void handleLEDSelection() {
   while (true) {
     Serial.println("Enter LED number to activate (or press Enter to exit):");
@@ -186,4 +156,63 @@ void handleLEDSelection() {
       Serial.println("Invalid selection or unsupported LED.");
     }
   }
+}
+
+// *****************************************************
+// Panel LED Detection for DEBUGING 
+// *****************************************************
+
+// Call this instead of calling DcsbiosProtocolReplay() directly
+void runReplayWithPrompt() {
+    bool infinite = false;
+
+    while ( true ) {
+        // 1) Run one iteration of your replay
+        DcsbiosProtocolReplay();
+
+        // 2) If we’re in “infinite” mode, just loop back immediately
+        if ( infinite ) continue;
+
+        // 3) Otherwise prompt the user
+        Serial.println();
+        Serial.println(F("=== REPLAY FINISHED ==="));
+        Serial.println(F("1) One more iteration"));
+        Serial.println(F("2) Run infinitely"));
+        Serial.println(F("3) Quit to main program"));
+        Serial.print  (F("Choose [1-3]: "));
+
+        // 4) Wait (cooperatively) for a keypress
+        while ( !Serial.available() ) {
+            yield(); 
+        }
+
+        char c = Serial.read();
+        // flush any extra characters (newline, etc)
+        while ( Serial.available() ) {
+            Serial.read();
+        }
+        Serial.println(c);
+
+        // 5) Dispatch
+        switch ( c ) {
+          case '1':
+            // just loop once more
+            break;
+
+          case '2':
+            // flip into infinite mode
+            infinite = true;
+            Serial.println(F(">>> entering infinite replay mode <<<"));
+            break;
+
+          case '3':
+            Serial.println(F(">>> exiting replay, returning to normal execution <<<"));
+            return;
+
+          default:
+            Serial.println(F("Invalid choice; please enter 1, 2, or 3."));
+            // re‐prompt on next iteration (doesn't advance replay)
+            continue;
+        }
+    }
 }

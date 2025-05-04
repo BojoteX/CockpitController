@@ -202,13 +202,15 @@ void onSelectorChange(const char* label, unsigned int value) {
         stateStr = (value > 0) ? "ON" : "OFF";
     }
 
-    debugPrintf("[STATE UPDATE] %s = %s\n", label, stateStr);
+    if(DEBUG) debugPrintf("[STATE UPDATE] %s = %s\n", label, stateStr);
 }
 
+// DcsbiosReplayData.h is generated from dcsbios_data.json using Python (see ReplayData directory). This was used in early development
+// to test locally via Serial Console. The preferred method for live debugging is WiFi UDP. See Config.h for configuration.
 #if IS_REPLAY
 #include "ReplayData/DcsbiosReplayData.h"
 void DcsbiosProtocolReplay() {
-    debugPrintln("\n[REPLAY PROTOCOL] 🔁 Playing from PROGMEM binary blob...");
+    debugPrintln("\n[REPLAY PROTOCOL] 🔁 Playing stream from binary blob...");
 
     const uint8_t* ptr = dcsbiosReplayData;
     const uint8_t* end = dcsbiosReplayData + dcsbiosReplayLength;
@@ -229,12 +231,12 @@ void DcsbiosProtocolReplay() {
         for (uint16_t i = 0; i < len; i++) {
             uint8_t b = pgm_read_byte(ptr + i);
             DcsBios::parser.processChar(b);
-            DcsBios::loop();               // ✅ Loop after each byte
-            // delayMicroseconds(1);          // simulate serial pace
+            DcsBios::loop();            // ✅ Loop after each byte
+            delayMicroseconds(1);       // simulate serial pace
         }
         ptr += len;
 
-        DcsBios::loop();                   // catch final updates
+        DcsBios::loop();                // catch final updates
 
         #if DEBUG_PERFORMANCE
             endProfiling("Replay Loop");
@@ -355,7 +357,7 @@ void sendDCSBIOSCommand(const char* label, uint16_t value, bool force = false) {
     }
 
     if (!cdcTxReady) {
-        debugPrintf("[DCS] ❌ Host not ready (Pending read)\n");
+        debugPrintf("[DCS] ❌ Host not ready (Pending read / Buffer full)\n");
         return;
     }
 
@@ -363,7 +365,7 @@ void sendDCSBIOSCommand(const char* label, uint16_t value, bool force = false) {
     static char valueStr[10];
     snprintf(valueStr, sizeof(valueStr), "%u", value);
     cdcTxReady = false;
-    DcsBios::sendDcsBiosMessage(label, valueStr);
+    DcsBios::sendDcsBiosMessage(label, valueStr); // This does a tud_cdc_write() and tud_cdc_write_flush() automatically
     yield();  
 
     // 5) Now that it’s queued, update history
