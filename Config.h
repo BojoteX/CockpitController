@@ -21,18 +21,22 @@
 // There is really no need for this, but if for you, ensuring cockpit sync is a top priority, use it. The design and architecture of this 
 // program is already fault-tolerant and throttles ALL sends to match DCS_UPDATE_RATE_HZ and avoid skipping commands. Like a PRO LEVEL
 // cockpit sim. 
-#define ENABLE_DCS_COMMAND_KEEPALIVE  0             // Explained above
-#define ENABLE_HID_KEEPALIVE          1             // Same, but for HID
+#define ENABLE_DCS_COMMAND_KEEPALIVE  0               // Explained above
+#define ENABLE_HID_KEEPALIVE          0               // Same, but for HID
 
 // Self explanatory, don't change if you don't know what you are doing
-#define DCS_UPDATE_RATE_HZ            30            // Change only if DCSBIOS ever changes its update freq (highly unlinkely)
-#define HID_REPORT_RATE_HZ            60            // Max 60Hz HID report rate to avoid spamming the CDC Endpoint / USB
-#define POLLING_RATE_HZ              250            // Panel and HID polling rate in Hz (125, 250, 500 Hz)
-#define HID_KEEP_ALIVE_INTERVAL_MS  1000            // Resend unchanged HID report after 1s
-#define DCS_KEEP_ALIVE_INTERVAL_MS  1000            // Re-send selector command every 1s if unchanged
-#define DCS_KEEPALIVE_POLL_INTERVAL POLLING_RATE_HZ // How often to check for keep-alive conditions
+#define DCS_UPDATE_RATE_HZ            30              // Change only if DCSBIOS ever changes its update freq (highly unlinkely)
+#define HID_REPORT_RATE_HZ            60              // Max 60Hz HID report rate to avoid spamming the CDC Endpoint / USB
+#define POLLING_RATE_HZ              250              // Panel and HID polling rate in Hz (125, 250, 500 Hz)
+#define VALUE_THROTTLE_MS             50              // How long (ms) to skip sending the same value again
+#define ANY_VALUE_THROTTLE_MS         33              // How long (ms) to skip sending different values (prevents spamming the CDC endpoint)
+#define SELECTOR_DWELL_MS            100              // Wait time (in ms) for stable selector value. Used by our dwell-time fitering logic
+#define HID_KEEP_ALIVE_INTERVAL_MS  1000              // Resend unchanged HID report after 1s
+#define DCS_KEEP_ALIVE_INTERVAL_MS  1000              // Re-send selector command every 1s if unchanged
+#define DCS_KEEPALIVE_POLL_INTERVAL POLLING_RATE_HZ   // How often to check for keep-alive conditions
 
-#define SERIAL_RX_BUFFER_SIZE       4096            // Your CDC/Serial receive buffer
+// Your CDC/Serial receive buffer
+#define SERIAL_RX_BUFFER_SIZE        4096              
 
 // Set to 1 to enable 400MHz PCA Bus FAST MODE   
 #define PCA_FAST_MODE         1   
@@ -104,10 +108,8 @@ static const IPAddress DEBUG_REMOTE_IP(192, 168, 7, 163);
 static const uint16_t DEBUG_REMOTE_PORT = 4210;
 #endif
 
-/*
 // Fix for latest Adafruit TinyUSB with 3.2.0 Core. We are NOT using Adafruit's Library, this is just for testing
 extern "C" bool __atomic_test_and_set(volatile void* ptr, int memorder) __attribute__((weak));
 bool __atomic_test_and_set(volatile void* ptr, int memorder) {
   return false; // pretend the lock was not already set
 }
-*/

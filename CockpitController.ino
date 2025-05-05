@@ -33,7 +33,7 @@ bool hasMasterARM = false; // Panel uses 0x5B, it is autodetected by our program
 // Checks mode selector state
 bool isModeSelectorDCS() {
   #if HAS_HID_MODE_SELECTOR
-  return digitalRead(MODE_SWITCH_PIN) == HIGH;
+  return digitalRead(MODE_SWITCH_PIN) == LOW;
   #else
   return true;
   #endif
@@ -125,19 +125,16 @@ void setup() {
 
   // I2C Initialization
   #if PCA_FAST_MODE
+  Wire.setTimeOut(100);
   Wire.begin(SDA_PIN, SCL_PIN, 400000);
   #else
-  Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setTimeOut(100);
+  Wire.begin(SDA_PIN, SCL_PIN, 100000);
   #endif
-
-  // Temporary increase timeout to provide plenty of time for panel detection
-  Wire.setTimeOut(500); 
+  delay(500); // Give I2C some time to respond
 
   // Detect PCA Panels (They are disabled by default)
   scanConnectedPanels();
-
-  // Once panels detected, bring timeout down, cap I²C bus timeout at 1 ms (aggresive)
-  Wire.setTimeOut(1); 
 
   // Show PCA Panels we discovered
   debugPrintln("\n=== Cockpit Brain Controller Initialization ===");
@@ -194,6 +191,7 @@ void setup() {
   debugPrintln("Initializing Panel states....");
   initializePanels();
 
+/*
   // Run before initializing Display/LED panels
   if (GN1640_detect(GLOBAL_CLK_PIN, CA_DIO_PIN)) {
     debugPrint("Caution Advisory is present");
@@ -201,6 +199,7 @@ void setup() {
   else {
     debugPrint("Caution Advisory NOT detected");
   }
+*/
 
   // Initializes your LEDs / Displays etc.
   debugPrintln("Initializing LEDs...");
@@ -284,4 +283,5 @@ void loop() {
   perfMonitorUpdate();
   #endif
 
+  // yield();
 }

@@ -42,7 +42,7 @@ void IRCool_init() {
     prevIRCPort1 = port1;
 
     // Analog input for HMD knob
-    HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
+    HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN, AXIS_RX);
 
     // Preload guarded toggle state for SPIN switch
     bool currSpinPressed = !bitRead(port1, SPIN_RCVY);
@@ -82,7 +82,7 @@ void IRCool_loop() {
   if (!shouldPollMs(lastIRCoolPoll)) return;
 
   // Always read the HMD knob
-  HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN);
+  HIDManager_moveAxis("HMD_OFF_BRT", HMD_KNOB_PIN, AXIS_RX);
 
   byte port0, port1;
   if (!readPCA9555(IRCOOL_PCA_ADDR, port0, port1)) return;

@@ -150,14 +150,14 @@ void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
     uint8_t dataToSend;
 
     // ONLY protect the cache access
-    portENTER_CRITICAL(&pca9555_mux);
+    // portENTER_CRITICAL(&pca9555_mux);
     if (state)
         PCA9555_cachedPortStates[addr][port] |= (1 << bit);
     else
         PCA9555_cachedPortStates[addr][port] &= ~(1 << bit);
 
     dataToSend = PCA9555_cachedPortStates[addr][port];
-    portEXIT_CRITICAL(&pca9555_mux);
+    // portEXIT_CRITICAL(&pca9555_mux);
 
     // Perform I²C operation outside the critical section
     uint8_t reg = (port == 0) ? 0x02 : 0x03;
@@ -189,7 +189,7 @@ void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
       Wire.write(data1);
     Wire.endTransmission();
     uint32_t dt = micros() - t0;
-    debugPrintf("PCA9555 raw I2C write: %u µs\n", dt);
+    debugPrintf("[INFO] PCA 0x%2x raw I2C write: %u µs\n", addr, dt);
 }
 
 void initPCA9555AsInput(uint8_t addr) {

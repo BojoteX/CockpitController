@@ -300,6 +300,140 @@ void setupCDCEvents() {
   Serial.onEvent(ARDUINO_USB_CDC_RX_OVERFLOW_EVENT,  cdcRxOvfHandler);
 }
 
+// Accessors into our TU static
+CommandHistoryEntry* dcsbios_getCommandHistory() {
+    return commandHistory;
+}
+size_t dcsbios_getCommandHistorySize() {
+    return commandHistorySize;
+}
+
+// ----------------------------------------------------------------------------
+// Lookup helper (O(N) for now, can swap to hash later)
+// ----------------------------------------------------------------------------
+CommandHistoryEntry* findCmdEntry(const char* label) {
+    for (size_t i = 0; i < commandHistorySize; ++i) {
+        if (strcmp(commandHistory[i].label, label) == 0) {
+            return &commandHistory[i];
+        }
+    }
+    return nullptr;
+}
+
+// ----------------------------------------------------------------------------
+// Flush buffered selector-groups (call this each loop)
+// ----------------------------------------------------------------------------
+static void flushBufferedDcsCommands() {
+    unsigned long now     = millis();
+
+    for (size_t i = 0; i < commandHistorySize; ++i) {
+        auto &e = commandHistory[i];
+        if (e.group == 0 || !e.hasPending || !cdcTxReady)
+            continue;
+
+        if (now - e.lastChangeTime >= SELECTOR_DWELL_MS) {
+            if (e.pendingValue != e.lastValue) {
+
+                // Host-ready check
+                if (!cdcTxReady) {
+                    debugPrintf("[DCS] ❌ Host NOT ready\n");
+                    return;
+                }
+
+                static char buf2[10];
+                snprintf(buf2, sizeof(buf2), "%u", e.pendingValue);
+                cdcTxReady = false;
+                DcsBios::sendDcsBiosMessage(e.label, buf2);
+                yield();
+                e.lastValue    = e.pendingValue;
+                e.lastSendTime = now;
+                debugPrintf("🛩️ [DCS] BUFFERED SEND: %s %s\n", e.label, buf2);
+            }
+            e.hasPending = false;
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Send command to DCS-BIOS sendDcsBiosCommand 
+// ----------------------------------------------------------------------------
+bool applyThrottle(CommandHistoryEntry &e,
+                          const char*    label,
+                          uint16_t       value,
+                          bool           force) {
+    // Always allow forced and release events
+    if (force || value == 0) {
+        return true;
+    }
+    unsigned long now = millis();
+    unsigned long dt  = now - e.lastSendTime;
+
+    if (value == 1) {
+        // BUTTON logic: very-fast duplicate first -> identical, slower -> rate
+        if (dt < VALUE_THROTTLE_MS) {
+            debugPrintf("[DCS] ⚠️ SKIP: %s debounced (%lums < %lums)\n",
+                        label, dt, VALUE_THROTTLE_MS);
+            return false;
+        }
+    } else {
+        // KNOB/AXIS logic: simple rate limiting
+        if (dt < ANY_VALUE_THROTTLE_MS) {
+            debugPrintf("[DCS] ⚠️ SKIP: %s rate limited (%lums < %lums)\n",
+                        label, dt, ANY_VALUE_THROTTLE_MS);
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * sendDCSBIOSCommand: shared DCS command sender, with selector buffering & throttle.
+ */
+void sendDCSBIOSCommand(const char* label,
+                        uint16_t     value,
+                        bool         force /*=false*/) {
+    // 1) Lookup history entry
+    auto* e = findCmdEntry(label);
+    if (!e) {
+        debugPrintf("⚠️ [DCS] REJECTED untracked: %s = %u\n", label, value);
+        return;
+    }
+    unsigned long now = millis();
+
+    // 2) Host-ready check
+    if (!cdcTxReady) {
+        debugPrintf("[DCS] ❌ Host NOT ready\n");
+        return;
+    }
+
+    // 3) Selector-group buffering (unchanged)
+    if (!force && e->group > 0) {
+        e->pendingValue   = value;
+        e->lastChangeTime = now;
+        e->hasPending     = true;
+        // debugPrintf("🔁 [DCS] Buffer Selection for GroupID: %u - %s %u\n", e->group, label, e->pendingValue);
+        return;
+    }
+
+    // 4) Apply unified throttle for non-zero
+    if (!applyThrottle(*e, label, value, force)) {
+        return;
+    }
+
+    // 5) Build & send message
+    static char buf[10];
+    snprintf(buf, sizeof(buf), "%u", value);
+    cdcTxReady = false;
+    DcsBios::sendDcsBiosMessage(label, buf);
+    yield();
+
+    // 6) Update history
+    e->lastValue    = value;
+    e->lastSendTime = now;
+    debugPrintf("🛩️ [DCS] SEND: %s = %u%s\n",
+                label, value, force ? " (forced)" : "");
+}
+
 void DCSBIOS_init() {
 
     #if DEBUG_PERFORMANCE
@@ -318,7 +452,7 @@ void DCSBIOS_loop() {
     #endif
 
     DcsBios::loop();
-
+    
     #if ENABLE_DCS_COMMAND_KEEPALIVE
     if (isModeSelectorDCS()) DCSBIOS_keepAlive();
     #endif
@@ -327,51 +461,9 @@ void DCSBIOS_loop() {
     endProfiling("DCS-BIOS Loop");
     #endif
 
+    if (isModeSelectorDCS()) flushBufferedDcsCommands();
+
     #if DEBUG_PERFORMANCE
     perfMonitorUpdate();
     #endif
-}
-
-void sendDCSBIOSCommand(const char* label, uint16_t value, bool force = false) {
-    // 1) Find the history entry
-    ssize_t idx = -1;
-    for (size_t i = 0; i < commandHistorySize; ++i) {
-        if (strcmp(commandHistory[i].label, label) == 0) {
-            idx = i;
-            break;
-        }
-    }
-    if (idx < 0) {
-        debugPrintf("⚠️ [DCS] REJECTED untracked command: %s = %u\n", label, value);
-        return;
-    }
-    auto &entry = commandHistory[idx];
-
-    unsigned long now = millis();
-
-    // 2) Throttle check (always runs)
-    if (!force && value == entry.lastValue && (now - entry.lastSendTime < 33)) {
-        debugPrintf("[DCS] ⚠️ THROTTLE SKIP: %s = %u (Δ%lums <33)\n",
-                    label, value, now - entry.lastSendTime);
-        return;
-    }
-
-    if (!cdcTxReady) {
-        debugPrintf("[DCS] ❌ Host not ready (Pending read / Buffer full)\n");
-        return;
-    }
-
-    // 4) Build and queue the packet
-    static char valueStr[10];
-    snprintf(valueStr, sizeof(valueStr), "%u", value);
-    cdcTxReady = false;
-    DcsBios::sendDcsBiosMessage(label, valueStr); // This does a tud_cdc_write() and tud_cdc_write_flush() automatically
-    yield();  
-
-    // 5) Now that it’s queued, update history
-    entry.lastValue    = value;
-    entry.lastSendTime = now;
-
-    debugPrintf("🛩️ [DCS] SEND: %s = %u%s\n",
-                label, value, force ? " (forced)" : "");
 }

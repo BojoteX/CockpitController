@@ -292,42 +292,38 @@ with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
         f.write(f'    {{ "{full}","{cmd}",{val},"{ct}",{grp} }},\n')
     f.write("};\nstatic const size_t SelectorMapSize = sizeof(SelectorMap)/sizeof(SelectorMap[0]);\n")
 
+
     f.write("\n// Tracked toggle & cover states\n")
-    f.write("TrackedStateEntry trackedStates[] = {\n")
+    f.write("struct TrackedStateEntry { const char* label; bool value; };\n")
+    f.write("static TrackedStateEntry trackedStates[] = {\n")
     for label in tracked_labels:
         f.write(f'    {{ "{label}", false }},\n')
     f.write("};\n")
-    f.write("const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);\n")
-
-
-
-
+    f.write("static const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);\n")
 
     # Build a flat list of all unique oride_labels and mark selectors with group > 0
     command_tracking = {}
     for full, cmd, val, ct, grp in selector_entries:
         if cmd not in command_tracking:
-            command_tracking[cmd] = grp > 0  # True if part of a selector group
+            command_tracking[cmd] = (grp > 0, grp)
 
-    # Emit the unified command history table
-    f.write("\n// Unified Command History Table (used for throttling and optional keep-alive)\n")
-    f.write("struct CommandHistoryEntry {\n")
-    f.write("    const char* label;\n")
-    f.write("    uint16_t lastValue;\n")
-    f.write("    unsigned long lastSendTime;\n")
-    f.write("    bool isSelector;\n")
-    f.write("};\n\n")
+    # ——— EMIT THE UNIFIED COMMAND HISTORY TABLE WITH GROUP + BUFFER FIELDS + HID REPORT CACHE ———
+    f.write("\n// Unified Command History Table (used for throttling, optional keep-alive, and HID dedupe)\n")
+
 
     f.write("static CommandHistoryEntry commandHistory[] = {\n")
-    for label, is_selector in sorted(command_tracking.items()):
-        f.write(f'    {{ "{label}", 0, 0, {"true" if is_selector else "false"} }},\n')
+    for label, (is_selector, grp) in sorted(command_tracking.items()):
+        # initialize all numeric fields to zero, booleans to false, arrays to {0}
+        f.write(
+            '    {{ "{label}", 0, 0, {sel}, {g}, 0,   0, false, '
+            '{{0}}, {{0}}, 0 }},\n'.format(
+                label=label,
+                sel="true" if is_selector else "false",
+                g=grp
+            )
+        )
     f.write("};\n")
     f.write("static const size_t commandHistorySize = sizeof(commandHistory)/sizeof(CommandHistoryEntry);\n")
-
-
-
-
-
 
 print(f"[✓] Generated {OUTPUT_HEADER} with "
       f"{len(output_entries)} outputs,  "

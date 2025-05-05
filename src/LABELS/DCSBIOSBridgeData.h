@@ -241,7 +241,8 @@ static const SelectorEntry SelectorMap[] = {
 static const size_t SelectorMapSize = sizeof(SelectorMap)/sizeof(SelectorMap[0]);
 
 // Tracked toggle & cover states
-TrackedStateEntry trackedStates[] = {
+struct TrackedStateEntry { const char* label; bool value; };
+static TrackedStateEntry trackedStates[] = {
     { "APU_FIRE_BTN", false },
     { "CMSD_JET_SEL_BTN", false },
     { "FIRE_EXT_BTN", false },
@@ -254,41 +255,34 @@ TrackedStateEntry trackedStates[] = {
     { "RIGHT_FIRE_BTN_COVER", false },
     { "SPIN_RECOVERY_COVER", false },
 };
-const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);
+static const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);
 
-// Unified Command History Table (used for throttling and optional keep-alive)
-struct CommandHistoryEntry {
-    const char* label;
-    uint16_t lastValue;
-    unsigned long lastSendTime;
-    bool isSelector;
-};
-
+// Unified Command History Table (used for throttling, optional keep-alive, and HID dedupe)
 static CommandHistoryEntry commandHistory[] = {
-    { "APU_FIRE_BTN", 0, 0, false },
-    { "AUX_REL_SW", 0, 0, true },
-    { "CHART_DIMMER", 0, 0, false },
-    { "CMSD_DISPENSE_SW", 0, 0, true },
-    { "CMSD_JET_SEL_BTN", 0, 0, false },
-    { "COCKKPIT_LIGHT_MODE_SW", 0, 0, true },
-    { "CONSOLES_DIMMER", 0, 0, false },
-    { "ECM_MODE_SW", 0, 0, true },
-    { "FIRE_EXT_BTN", 0, 0, false },
-    { "FLOOD_DIMMER", 0, 0, false },
-    { "HMD_OFF_BRT", 0, 0, false },
-    { "INST_PNL_DIMMER", 0, 0, false },
-    { "IR_COOL_SW", 0, 0, true },
-    { "LEFT_FIRE_BTN", 0, 0, false },
-    { "LEFT_FIRE_BTN_COVER", 0, 0, false },
-    { "LIGHTS_TEST_SW", 0, 0, true },
-    { "MASTER_ARM_SW", 0, 0, true },
-    { "MASTER_CAUTION_RESET_SW", 0, 0, false },
-    { "MASTER_MODE_AA", 0, 0, false },
-    { "MASTER_MODE_AG", 0, 0, false },
-    { "RIGHT_FIRE_BTN", 0, 0, false },
-    { "RIGHT_FIRE_BTN_COVER", 0, 0, false },
-    { "SPIN_RECOVERY_COVER", 0, 0, false },
-    { "SPIN_RECOVERY_SW", 0, 0, true },
-    { "WARN_CAUTION_DIMMER", 0, 0, false },
+    { "APU_FIRE_BTN", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "AUX_REL_SW", 0, 0, true, 1, 0,   0, false, {0}, {0}, 0 },
+    { "CHART_DIMMER", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "CMSD_DISPENSE_SW", 0, 0, true, 2, 0,   0, false, {0}, {0}, 0 },
+    { "CMSD_JET_SEL_BTN", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "COCKKPIT_LIGHT_MODE_SW", 0, 0, true, 4, 0,   0, false, {0}, {0}, 0 },
+    { "CONSOLES_DIMMER", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "ECM_MODE_SW", 0, 0, true, 3, 0,   0, false, {0}, {0}, 0 },
+    { "FIRE_EXT_BTN", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "FLOOD_DIMMER", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "HMD_OFF_BRT", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "INST_PNL_DIMMER", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "IR_COOL_SW", 0, 0, true, 6, 0,   0, false, {0}, {0}, 0 },
+    { "LEFT_FIRE_BTN", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "LEFT_FIRE_BTN_COVER", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "LIGHTS_TEST_SW", 0, 0, true, 5, 0,   0, false, {0}, {0}, 0 },
+    { "MASTER_ARM_SW", 0, 0, true, 8, 0,   0, false, {0}, {0}, 0 },
+    { "MASTER_CAUTION_RESET_SW", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "MASTER_MODE_AA", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "MASTER_MODE_AG", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "RIGHT_FIRE_BTN", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "RIGHT_FIRE_BTN_COVER", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "SPIN_RECOVERY_COVER", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
+    { "SPIN_RECOVERY_SW", 0, 0, true, 7, 0,   0, false, {0}, {0}, 0 },
+    { "WARN_CAUTION_DIMMER", 0, 0, false, 0, 0,   0, false, {0}, {0}, 0 },
 };
 static const size_t commandHistorySize = sizeof(commandHistory)/sizeof(CommandHistoryEntry);

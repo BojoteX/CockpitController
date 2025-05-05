@@ -23,3 +23,18 @@ void HIDManager_commitDeferredReport(const char* deviceName);
 bool shouldPollMs(unsigned long &lastPoll);
 void HIDManager_keepAlive();
 void HIDManager_sendReport(const char* label, int32_t value = -1);
+
+// ───── HID Axis ─────
+enum HIDAxis : uint8_t {
+  AXIS_X = 0,
+  AXIS_Y,
+  AXIS_Z,
+  AXIS_RX,
+  AXIS_RY,
+  AXIS_RZ,
+  AXIS_SLIDER1,
+  AXIS_SLIDER2,
+  HID_AXIS_COUNT
+};
+
+void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin, HIDAxis axis);

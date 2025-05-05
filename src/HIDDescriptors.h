@@ -1,6 +1,8 @@
 // HIDDescriptors.h
 #pragma once
 
+#include <USBHID.h>       // bring in USBHIDDevice
+
 // HID report descriptor: 1 axis (Rx), 32 buttons
 uint8_t const hidReportDesc[] = {
   0x05, 0x01,       // Usage Page (Generic Desktop)
@@ -29,14 +31,16 @@ uint8_t const hidReportDesc[] = {
 // HID report structure
 typedef union {
   struct __attribute__((packed)) {
-    uint16_t rx;
-    uint32_t buttons;
+    uint16_t rx; // 2 bytes
+    uint32_t buttons; // 4 bytes
   };
-  uint8_t raw[6];
+  uint8_t raw[6]; // 6 bytes total (see above) this has to be updated if you change your descriptor
 } GamepadReport_t;
 
 static_assert(sizeof(GamepadReport_t) == 6, "GamepadReport_t must be 6 bytes");
-static GamepadReport_t report;
+
+extern USBHID HID;
+extern GamepadReport_t report;
 
 class GPDevice : public USBHIDDevice {
 public:
@@ -49,4 +53,5 @@ public:
     return HID.SendReport(0, data, len);
   }
 };
-GPDevice gp;
+
+extern GPDevice gp;

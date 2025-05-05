@@ -109,8 +109,9 @@ for panel, controls in data.items():
         lid         = ident.lower()
         desc_lower  = item.get('description','').lower()
 
-        # skip analogs
-        if ctype in ('limited_dial','analog_dial','analog_gauge'):
+        # skip analog gauges (but allow knobs)
+        # if ctype in ('limited_dial','analog_dial','analog_gauge'):
+        if ctype == 'analog_gauge':
             continue
 
         # find max_value
@@ -165,13 +166,22 @@ for panel, controls in data.items():
             labels = [f"POS{i}" for i in range(count)]
 
         # 5) append (with reversed value and group for slash‑split selectors)
-        for i, lab in enumerate(labels):
-            clean = lab.upper().replace(' ','_')
-            if useSlash:
-                val = (count - 1) - i
-                selector_entries.append((f"{ident}_{clean}", ident, val, ctype, currentGroup))
-            else:
-                selector_entries.append((f"{ident}_{clean}", ident, i, ctype, 0))
+        if ctype in ('limited_dial', 'analog_dial'):
+            # Analog input: use single label with type 'analog' and no group
+            selector_entries.append((ident, ident, max_val, 'analog', 0))
+        else:
+            # 5) append as discrete selector/momentary
+            for i, lab in enumerate(labels):
+                clean = lab.upper().replace(' ','_')
+                if useSlash:
+                    val = (count - 1) - i
+                    selector_entries.append((f"{ident}_{clean}", ident, val, ctype, currentGroup))
+                else:
+                    selector_entries.append((f"{ident}_{clean}", ident, i, ctype, 0))
+
+
+
+
 
 # -------- BUILD TRACKED STATES (toggle + covers) --------
 
@@ -196,7 +206,7 @@ tracked_labels = sorted(tracked_labels)
 
 with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
     f.write("// Auto-generated DCSBIOS Bridge Data (JSON‑only) - DO NOT EDIT\n")
-    f.write("#pragma once\n\n#include <stdint.h>\n\n")
+    f.write("#pragma once\n\n#include \"../HIDDescriptors.h\"\n#include <stdint.h>\n\n")
 
     # Outputs
     f.write("enum ControlType : uint8_t {\n")
@@ -282,12 +292,52 @@ with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
         f.write(f'    {{ "{full}","{cmd}",{val},"{ct}",{grp} }},\n')
     f.write("};\nstatic const size_t SelectorMapSize = sizeof(SelectorMap)/sizeof(SelectorMap[0]);\n")
 
+
     f.write("\n// Tracked toggle & cover states\n")
-    f.write("TrackedStateEntry trackedStates[] = {\n")
+    f.write("struct TrackedStateEntry { const char* label; bool value; };\n")
+    f.write("static TrackedStateEntry trackedStates[] = {\n")
     for label in tracked_labels:
         f.write(f'    {{ "{label}", false }},\n')
     f.write("};\n")
-    f.write("const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);\n")
+    f.write("static const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);\n")
+
+    # Build a flat list of all unique oride_labels and mark selectors with group > 0
+    command_tracking = {}
+    for full, cmd, val, ct, grp in selector_entries:
+        if cmd not in command_tracking:
+            command_tracking[cmd] = (grp > 0, grp)
+
+    # ——— EMIT THE UNIFIED COMMAND HISTORY TABLE WITH GROUP + BUFFER FIELDS + HID REPORT CACHE ———
+    f.write("\n// Unified Command History Table (used for throttling, optional keep-alive, and HID dedupe)\n")
+    f.write("struct CommandHistoryEntry {\n")
+    f.write("    const char*     label;             // DCS command or HID control label\n")
+    f.write("    uint16_t        lastValue;         // last DCS value sent\n")
+    f.write("    unsigned long   lastSendTime;      // millis() of last DCS send\n")
+    f.write("    bool            isSelector;        // part of a grouped selector\n")
+    f.write("    uint16_t        group;             // selector group ID (>0)\n\n")
+    f.write("    // buffering for grouped selectors:\n")
+    f.write("    uint16_t        pendingValue;      // deferred DCS value\n")
+    f.write("    unsigned long   lastChangeTime;    // millis() of last change\n")
+    f.write("    bool            hasPending;        // pendingValue != lastValue\n\n")
+    f.write("    // HID report dedupe/cache:\n")
+    f.write("    uint8_t lastReport[sizeof(report.raw)];   // last raw HID bytes sent\n")
+    f.write("    uint8_t pendingReport[sizeof(report.raw)];\n")
+    f.write("    unsigned long   lastHidSendTime;   // millis() of last HID send\n")
+    f.write("};\n\n")
+
+    f.write("static CommandHistoryEntry commandHistory[] = {\n")
+    for label, (is_selector, grp) in sorted(command_tracking.items()):
+        # initialize all numeric fields to zero, booleans to false, arrays to {0}
+        f.write(
+            '    {{ "{label}", 0, 0, {sel}, {g}, 0,   0, false, '
+            '{{0}}, {{0}}, 0 }},\n'.format(
+                label=label,
+                sel="true" if is_selector else "false",
+                g=grp
+            )
+        )
+    f.write("};\n")
+    f.write("static const size_t commandHistorySize = sizeof(commandHistory)/sizeof(CommandHistoryEntry);\n")
 
 print(f"[✓] Generated {OUTPUT_HEADER} with "
       f"{len(output_entries)} outputs,  "
@@ -353,7 +403,7 @@ with open(INPUT_REFERENCE, "w", encoding="utf-8") as f2:
     f2.write("    uint8_t     bit;          // Bit position\n")
     f2.write("    int8_t      hidId;        // HID usage ID\n")
     f2.write("    const char* oride_label;  // Override command label (dcsCommand)\n")
-    f2.write("    int16_t     oride_value;  // Override command value (value)\n")
+    f2.write("    uint16_t    oride_value;  // Override command value (value)\n")
     f2.write("    const char* controlType;  // Control type, e.g., \"selector\"\n")
     f2.write("    uint16_t    group;        // Group ID for exclusive selectors\n")
     f2.write("};\n\n")
@@ -368,8 +418,10 @@ with open(INPUT_REFERENCE, "w", encoding="utf-8") as f2:
         lblf = f'"{lbl}"'.ljust(max_label+2)
         cmdf = f'"{cmd}"'.ljust(max_cmd+2)
         ctf  = f'"{typ}"'.ljust(max_type+2)
+        # Format override value safely
+        val_str = f"0xFFFF" if val > 32767 else f"{val:>5}"
         f2.write(f'    {{ {lblf}, "{src}" , {port:>2} , {bit:>2} , {hid:>3} , '
-                 f'{cmdf}, {val:>3} , {ctf}, {gp:>2} }},\n')
+                 f'{cmdf}, {val_str} , {ctf}, {gp:>2} }},\n')
 
     f2.write("};\n")
     f2.write("static const size_t InputMappingSize = sizeof(InputMappings)/sizeof(InputMappings[0]);\n\n")
@@ -398,12 +450,12 @@ with open(INPUT_REFERENCE, "w", encoding="utf-8") as f2:
         f2.write(f"  {entry},\n")
     f2.write("};\n\n")
 
-    f2.write("// DJB2 hash function for input labels\n")
-    f2.write("constexpr uint16_t inputHash(const char* str) {\n")
-    f2.write("  uint16_t hash = 5381;\n")
-    f2.write("  while (*str) { hash = ((hash << 5) + hash) + *str++; }\n")
-    f2.write("  return hash;\n")
+    f2.write("// Shared recursive hash implementation\n")
+    f2.write("constexpr uint16_t labelHash(const char* s) {\n")
+    f2.write("  return *s ? static_cast<uint16_t>(*s) + 31 * labelHash(s + 1) : 0;\n")
     f2.write("}\n\n")
+    f2.write("// Preserve existing signature\n")
+    f2.write("constexpr uint16_t inputHash(const char* s) { return labelHash(s); }\n\n")
 
     f2.write("inline const InputMapping* findInputByLabel(const char* label) {\n")
     f2.write(f"  uint16_t startH = inputHash(label) % {INPUT_TABLE_SIZE};\n")
@@ -564,12 +616,8 @@ with open(LED_REFERENCE, "w", encoding="utf-8") as out:
         out.write(f"  {entry},\n")
     out.write("};\n\n")
 
-    out.write("// djb2 hash function\n")
-    out.write("constexpr uint16_t ledHash(const char* str) {\n")
-    out.write("  uint16_t hash = 5381;\n")
-    out.write("  while (*str) { hash = ((hash << 5) + hash) + *str++; }\n")
-    out.write("  return hash;\n")  # No % TABLE_SIZE here
-    out.write("}\n\n")
+    out.write("// Reuse shared recursive hash implementation\n")
+    out.write("constexpr uint16_t ledHash(const char* s) { return labelHash(s); }\n\n")
 
     out.write("// findLED lookup\n")
     out.write("inline const LEDMapping* findLED(const char* label) {\n")

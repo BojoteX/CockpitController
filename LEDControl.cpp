@@ -29,6 +29,7 @@ void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
 
     if (hasMasterARM) PCA9555_autoInitFromLEDMap(0x5B);
     if (hasECM) PCA9555_autoInitFromLEDMap(0x22);
+    if (hasBrain) PCA9555_autoInitFromLEDMap(0x26);
 
     if (hasLockShoot) {
         debugPrintln("✅ Lock/Shoot detected, initializing...");
@@ -71,8 +72,6 @@ void initializeLEDs(const char* activePanels[], unsigned int panelCount) {
     if (hasCA) { GN1640_allOn(); delay(1000); GN1640_allOff(); }
     if (hasLockShoot) { WS2812_allOn(CRGB::Green); delay(1000); WS2812_allOff(); }
     GPIO_setAllLEDs(true); delay(1000); GPIO_setAllLEDs(false);
- 
-
 }
 
 // Blazing fast setLED()
