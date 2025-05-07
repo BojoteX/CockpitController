@@ -389,10 +389,13 @@ bool applyThrottle(CommandHistoryEntry &e,
 /**
  * sendDCSBIOSCommand: shared DCS command sender, with selector buffering & throttle.
  */
-void sendDCSBIOSCommand(const char* label,
-                        uint16_t     value,
-                        bool         force /*=false*/) {
-    // 1) Lookup history entry
+void sendDCSBIOSCommand(const char* label, uint16_t value, bool force /*=false*/) {
+
+    // Always flush anything in the buffer before even attempting a send...
+    tud_cdc_write_flush();
+    yield();
+    
+    // Lookup history entry
     auto* e = findCmdEntry(label);
     if (!e) {
         debugPrintf("⚠️ [DCS] REJECTED untracked: %s = %u\n", label, value);
@@ -406,6 +409,7 @@ void sendDCSBIOSCommand(const char* label,
         return;
     }
 
+    #if defined(SELECTOR_DWELL_MS) && (SELECTOR_DWELL_MS > 0)
     // 3) Selector-group buffering (unchanged)
     if (!force && e->group > 0) {
         e->pendingValue   = value;
@@ -414,6 +418,7 @@ void sendDCSBIOSCommand(const char* label,
         // debugPrintf("🔁 [DCS] Buffer Selection for GroupID: %u - %s %u\n", e->group, label, e->pendingValue);
         return;
     }
+    #endif
 
     // 4) Apply unified throttle for non-zero
     if (!applyThrottle(*e, label, value, force)) {
@@ -424,14 +429,17 @@ void sendDCSBIOSCommand(const char* label,
     static char buf[10];
     snprintf(buf, sizeof(buf), "%u", value);
     cdcTxReady = false;
-    DcsBios::sendDcsBiosMessage(label, buf);
-    yield();
+
+    if(DcsBios::sendDcsBiosMessage(label, buf)) {
+        debugPrintf("🛩️ [DCS] SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
+    }
+    else {
+        debugPrintf("❌ [DCS] COULD NOT SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
+    }
 
     // 6) Update history
     e->lastValue    = value;
     e->lastSendTime = now;
-    debugPrintf("🛩️ [DCS] SEND: %s = %u%s\n",
-                label, value, force ? " (forced)" : "");
 }
 
 void DCSBIOS_init() {
@@ -461,7 +469,9 @@ void DCSBIOS_loop() {
     endProfiling("DCS-BIOS Loop");
     #endif
 
+    #if defined(SELECTOR_DWELL_MS) && (SELECTOR_DWELL_MS > 0)
     if (isModeSelectorDCS()) flushBufferedDcsCommands();
+    #endif
 
     #if DEBUG_PERFORMANCE
     perfMonitorUpdate();

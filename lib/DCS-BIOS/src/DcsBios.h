@@ -132,6 +132,35 @@ do not come with their own build system, we are just putting everything into the
 			ExportStreamListener::loopAll();			
 		}
 		bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
+			// Estimate the total space needed
+  			size_t len = strlen(msg) + 1 + strlen(arg) + 1; // "CMD ARG\n"
+
+  			// Check buffer availability
+  			if (tud_cdc_write_available() < len) {
+    				return false; // Not enough space in TX FIFO
+  			}
+
+  			// Write parts manually
+  			tud_cdc_write_str(msg);
+  			tud_cdc_write_str(" ");
+  			tud_cdc_write_str(arg);
+  			tud_cdc_write_str("\n");
+
+  			// Flush and re-check available space to confirm it drained
+  			size_t before = tud_cdc_write_available();
+  			tud_cdc_write_flush();
+  			yield();
+  			size_t after = tud_cdc_write_available();
+
+  			// If no new space freed, assume host is stalled
+  			if (after <= before) return false;
+
+  			DcsBios::PollingInput::setMessageSentOrQueued();
+  			return true;
+		}
+
+/*
+		bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
   			char buffer[64];
   			snprintf(buffer, sizeof(buffer), "%s %s\n", msg, arg);
   			tud_cdc_write(buffer, strlen(buffer));
@@ -139,6 +168,7 @@ do not come with their own build system, we are just putting everything into the
 			DcsBios::PollingInput::setMessageSentOrQueued();
 			return true;
 		}
+*/
 		void resetAllStates() {
 			PollingInput::resetAllStates();
 		}

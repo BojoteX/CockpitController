@@ -12,9 +12,10 @@
 // Load TinyUSB Support
 #include "tusb.h"
 
-#if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
-// Pull in the USB stack + HID (CDC ON BOOT ALREADY LOADS USB, SO DONT NEED IT)
 #include <USB.h>
+
+#if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
+// Pull in the CDC stack (CDC ON BOOT ALREADY LOADS USB, SO DONT NEED IT)
 #include <USBCDC.h>
 extern USBCDC USBSerial;
 #define Serial USBSerial

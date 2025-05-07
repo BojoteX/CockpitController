@@ -5,14 +5,13 @@
 //
 // **************************************************************
 
+#define GN1640_CLK_HALF_PERIOD_US 100 // Was 500 before 
+
 // ---- GN1640 Buffered State ----
 static uint8_t rowShadow[8] = {0};  // desired state
 static uint8_t rowActive[8] = {0};  // current hardware state
 static bool refreshPending = false;
 static unsigned long lastUpdateTime = 0;
-
-// Mutex for GN1640 access
-portMUX_TYPE gn1640_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static uint8_t gn1640_clkPin, gn1640_dioPin;
 // Precisely matched timings
@@ -35,9 +34,9 @@ void GN1640_sendByte(uint8_t data) {
   for (int i = 0; i < 8; i++) {
     digitalWrite(gn1640_clkPin, LOW);
     digitalWrite(gn1640_dioPin, (data & 0x01) ? HIGH : LOW);
-    delayMicroseconds(500); // Matches CLK_HALF_PERIOD exactly
+    delayMicroseconds(GN1640_CLK_HALF_PERIOD_US); // Matches CLK_HALF_PERIOD exactly
     digitalWrite(gn1640_clkPin, HIGH);
-    delayMicroseconds(500); // Matches CLK_HALF_PERIOD exactly
+    delayMicroseconds(GN1640_CLK_HALF_PERIOD_US); // Matches CLK_HALF_PERIOD exactly
     data >>= 1;
   }
   digitalWrite(gn1640_clkPin, LOW); // Wait for ACK (ignored)
@@ -92,16 +91,11 @@ void GN1640_setLED(uint8_t row, uint8_t col, bool state) {
 
 
 void GN1640_write(uint8_t column, uint8_t value) {
-
-  portENTER_CRITICAL(&gn1640_mux);
-
   GN1640_command(0x44); // Fixed address mode
   GN1640_startCondition();
   GN1640_sendByte(0xC0 | column);
   GN1640_sendByte(value);
   GN1640_stopCondition();
-
-  portEXIT_CRITICAL(&gn1640_mux);
 }
 
 void GN1640_clearAll() {
@@ -198,21 +192,46 @@ void GN1640_tick() {
   refreshPending = false;
 }
 
-// Try to detect if device is present.
-bool GN1640_detect(uint8_t clkPin, uint8_t dioPin) {
-  // 1) Drive DIO as output and issue a harmless command to wake the device
-  pinMode(dioPin, OUTPUT);
-  GN1640_startCondition();
-  GN1640_sendByte(0x44);         // fixed-address mode command
-  // 2) Switch DIO to input with pull-up so we can sense ACK
-  pinMode(dioPin, INPUT_PULLUP);
-  // 3) Pulse CLK high to sample the ACK bit
-  digitalWrite(clkPin, HIGH);
-  delayMicroseconds(500);        // matches sendByte timing
-  bool ack = (digitalRead(dioPin) == LOW);
-  digitalWrite(clkPin, LOW);
-  // 4) Restore bus to known idle and back to output
-  GN1640_stopCondition();
-  pinMode(dioPin, OUTPUT);
+bool GN1640_sendByteWithAck(uint8_t data) {
+  // clock out 8 data bits…
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(gn1640_clkPin, LOW);
+    digitalWrite(gn1640_dioPin, (data & 0x01) ? HIGH : LOW);
+    delayMicroseconds(GN1640_CLK_HALF_PERIOD_US);
+    digitalWrite(gn1640_clkPin, HIGH);
+    delayMicroseconds(GN1640_CLK_HALF_PERIOD_US);
+    data >>= 1;
+  }
+
+  // release for ACK
+  digitalWrite(gn1640_clkPin, LOW);
+  pinMode(gn1640_dioPin, INPUT_PULLUP);
+  delayMicroseconds(1);
+
+  // ninth clock → sample ACK
+  digitalWrite(gn1640_clkPin, HIGH);
+  delayMicroseconds(GN1640_CLK_HALF_PERIOD_US);
+  bool ack = (digitalRead(gn1640_dioPin) == LOW);
+
+  // finish
+  digitalWrite(gn1640_clkPin, LOW);
+  pinMode(gn1640_dioPin, OUTPUT);
   return ack;
+}
+
+bool GN1640_detect(uint8_t clkPin, uint8_t dioPin) {
+  // stash pins
+  gn1640_clkPin = clkPin;
+  gn1640_dioPin = dioPin;
+  pinMode(gn1640_clkPin, OUTPUT);
+  pinMode(gn1640_dioPin, OUTPUT);
+  digitalWrite(gn1640_clkPin, HIGH);
+  digitalWrite(gn1640_dioPin, HIGH);
+
+  // probe
+  GN1640_startCondition();
+  bool present = GN1640_sendByteWithAck(0x44);   // fixed-address mode cmd
+  GN1640_stopCondition();
+
+  return present;
 }

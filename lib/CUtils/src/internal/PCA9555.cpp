@@ -1,6 +1,3 @@
-// Mutex for PCA9555 I²C access
-portMUX_TYPE pca9555_mux = portMUX_INITIALIZER_UNLOCKED;
-
 bool loggingEnabled = false;
 
 // static const char* resolveInputLabel(uint8_t addr, uint8_t port, uint8_t bit);
@@ -145,19 +142,15 @@ void PCA9555_autoInitFromLEDMap(uint8_t addr) {
     Wire.endTransmission();
 }
 
-/*
+/* VERY OLD VERSION
 void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
     uint8_t dataToSend;
-
-    // ONLY protect the cache access
-    // portENTER_CRITICAL(&pca9555_mux);
     if (state)
         PCA9555_cachedPortStates[addr][port] |= (1 << bit);
     else
         PCA9555_cachedPortStates[addr][port] &= ~(1 << bit);
 
     dataToSend = PCA9555_cachedPortStates[addr][port];
-    // portEXIT_CRITICAL(&pca9555_mux);
 
     // Perform I²C operation outside the critical section
     uint8_t reg = (port == 0) ? 0x02 : 0x03;
@@ -171,6 +164,11 @@ void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
 
 void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
     uint8_t data0, data1;
+
+    if (!panelExists(addr)) {
+        debugPrintf("[PCA] ❌ Write / LED skipped. %s (0x%02X) not present\n", getPanelName(addr), addr);
+	return;
+    }
 
     // update the cache
     if (state)

@@ -5,6 +5,7 @@
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
+#include "src/PsramConfig.h" // We init PSRAM when available only
 #include <Wire.h>
 
 #if DEBUG_PERFORMANCE
@@ -60,13 +61,6 @@ void initializePanels() {
   if (hasMasterARM) MasterARM_init();  
 }
 
-bool panelExists(uint8_t targetAddr) {
-  for (uint8_t i = 0; i < discoveredDeviceCount; ++i) {
-    if (discoveredDevices[i].address == targetAddr) return true;
-  }
-  return false;
-}
-
 void checkHealth() {
   // --- Internal SRAM (on-chip) ---
   size_t free_int    = heap_caps_get_free_size         (MALLOC_CAP_INTERNAL);
@@ -81,6 +75,14 @@ void checkHealth() {
   float  frag_psram    = free_psram
                        ? 100.0f * (1.0f - (float)largest_psram / (float)free_psram)
                        : 0.0f;
+
+  // Check if PSRAM is available
+  if (initPSRAM()) {
+    debugPrintln("PSRAM is available on this device");
+  }
+  else {
+    debugPrintln("PSRAM is NOT available on this device");
+  }
 
   // --- Print it all out ---
   debugPrintf(
@@ -100,18 +102,9 @@ void checkHealth() {
 
 // Arduino Setup Routine
 void setup() {
-  // Starts our USB/CDC + HID device
-  HIDManager_begin();
-  
-  // Activates during DEBUG mode, useful to get Port/Bit info for PCA Devices
-  enablePCA9555Logging(DEBUG);
 
   // First parameter is output to Serial, second one is output to UDP (only use this for overriding output)
   debugSetOutput(debugToSerial, debugToUDP); 
-
-  #if DEBUG_USE_WIFI
-  wifi_setup();
-  #endif
 
   // Only do this if we have a selector
   #if HAS_HID_MODE_SELECTOR
@@ -123,6 +116,12 @@ void setup() {
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
 
+  // Init PSRAM (if available)
+  initPSRAM();
+
+  // Activates during DEBUG mode, useful to get Port/Bit info for PCA Devices
+  enablePCA9555Logging(DEBUG);
+
   // I2C Initialization
   #if PCA_FAST_MODE
   Wire.setTimeOut(100);
@@ -131,10 +130,22 @@ void setup() {
   Wire.setTimeOut(100);
   Wire.begin(SDA_PIN, SCL_PIN, 100000);
   #endif
-  delay(500); // Give I2C some time to respond
 
   // Detect PCA Panels (They are disabled by default)
   scanConnectedPanels();
+
+  //
+  //  NONE OF THE ABOVE FUNCTIONS REQUIRE SERIAL OR PRINTS ANY OUTPUT....
+  //
+
+  // Starts our USB/CDC Serial + HID device
+  HIDManager_begin();
+
+  #if DEBUG_USE_WIFI
+  wifi_setup();
+  #endif
+
+  DCSBIOS_init();
 
   // Show PCA Panels we discovered
   debugPrintln("\n=== Cockpit Brain Controller Initialization ===");
@@ -187,19 +198,17 @@ void setup() {
   ADD_PANEL_IF_ENABLED(hasECM, "ECM");
   ADD_PANEL_IF_ENABLED(hasMasterARM, "ARM");
 
-  // Syncronize your active panels states
-  debugPrintln("Initializing Panel states....");
-  initializePanels();
-
-/*
   // Run before initializing Display/LED panels
   if (GN1640_detect(GLOBAL_CLK_PIN, CA_DIO_PIN)) {
-    debugPrint("Caution Advisory is present");
+    debugPrintln("✅ Caution Advisory detected");
   }
   else {
-    debugPrint("Caution Advisory NOT detected");
+    debugPrintln("⚠️ Caution Advisory NOT detected");
   }
-*/
+
+  // Syncronize your active panels states
+  // debugPrintln("Initializing Panel states....");
+  // initializePanels();
 
   // Initializes your LEDs / Displays etc.
   debugPrintln("Initializing LEDs...");
@@ -219,10 +228,10 @@ void setup() {
   #endif
 
   if(DEBUG) {
-    debugPrintln("Device is now ready! (DEBUG ENABLED)");
+    debugPrintln("Device is ready! (DEBUG ENABLED)");
   }
   else {
-    debugPrintln("Device is now ready!");
+    debugPrintln("Device is ready!");
   }
   debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
 
@@ -233,6 +242,10 @@ void setup() {
 // Arduino Loop Routine
 void loop() {
   
+  // Calls our DCSBIOSBridge Loop function
+  DCSBIOS_loop(); 
+
+  // Calls our HID loop
   HIDManager_loop(); 
 
   // Performance Profiling using beginProfiling("name") -> endProfiling("name") but only when DEBUG_PERFORMANCE  
@@ -282,6 +295,4 @@ void loop() {
   #if DEBUG_PERFORMANCE
   perfMonitorUpdate();
   #endif
-
-  // yield();
 }

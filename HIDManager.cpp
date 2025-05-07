@@ -4,21 +4,31 @@
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
-
-// Flow-control flag: only send a new report once the previous one really left (not implemented for HID, only CDC)
-static volatile bool hidTxReady = true;
-
-// Define HID + Load Descriptors
-#include <USBHID.h>
 #include "src/HIDDescriptors.h"
-USBHID HID;
-GamepadReport_t report;
-GPDevice        gp;
 
+USBHID HID;
 #if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
 // Get the USBCDC class (we don't need unless we DISABLE CDC ON BOOT)
 USBCDC USBSerial;
 #endif
+
+GamepadReport_t report = { .rx = 0, .buttons = 0 };
+
+// Minimal device with descriptor handler
+struct GamepadDevice : USBHIDDevice {
+  uint16_t _onGetDescriptor(uint8_t* buf) override {
+    memcpy(buf, hidReportDesc, sizeof(hidReportDesc));
+    return sizeof(hidReportDesc);
+  }
+};
+GamepadDevice gamepad;
+
+// Flow-control flag: only send a new report once the previous one really left (not implemented for HID, only CDC)
+volatile bool hidTxReady = true;
+
+// Timeouts (ms)
+static constexpr uint32_t USB_MOUNT_TIMEOUT = 5000;
+static constexpr uint32_t HID_READY_TIMEOUT = 2000;
 
 // Group bitmask store
 #define MAX_GROUPS 32
@@ -34,7 +44,7 @@ void buildHIDGroupBitmasks() {
   }
 }
 
-// String Descriptor Helper
+// Descriptor Helper
 static uint16_t _desc_str_buf[32];
 static const uint16_t* make_str_desc(const char* s) {
   size_t len = strlen(s);
@@ -58,8 +68,8 @@ extern "C" {
       case 1: return make_str_desc(USB_MANUFACTURER);
       case 2: return make_str_desc(USB_PRODUCT);
       case 3: return make_str_desc(USB_SERIAL);
-      case 4: return make_str_desc(USB_PRODUCT); // HID name
-      case 5: return make_str_desc(USB_PRODUCT); // CDC name
+      case 4: return make_str_desc(USB_PRODUCT_HID); // HID name
+      case 5: return make_str_desc(USB_PRODUCT_CDC); // CDC name
       case 6: return make_str_desc(USB_PRODUCT); // Device name
       default: return nullptr;
     }
@@ -104,25 +114,16 @@ void setupHIDEvents() {
 // Also, should NOT be able to send reports IF we are in DCS-MODE
 static bool HID_can_send_report() {
 
-    // 1) Are we in DCS mode? is so, skip!
-    if(isModeSelectorDCS()) {
-      return false;
-    }
+    // Skip is we are in DCS-MODE
+    if (isModeSelectorDCS()) return false;
 
-    // 2) Are we fully enumerated (host-side mount complete)?
-    if ( !tud_mounted() ) {
-        // not yet enumerated → no traffic
-        return false;
-    }
-    // 3) Give TinyUSB’s background task a chance to run
-    // yield();
-    // 4) Check the HID IN endpoint is free
-    if ( !HID.ready() ) {
-        // still busy sending last report
-        return false;
-    }
-    // 5) yield again if we want extra breathing room
-    // yield();
+    // Skip if HID not ready..
+    if (!HID.ready()) return false;
+
+    // For future implementation
+    // if (!hidTxReady) return false;
+
+    // Allow sending report!
     return true;
 }
 
@@ -176,8 +177,8 @@ static void flushBufferedHidCommands() {
             continue;  // endpoint busy or not mounted
 
         // emit
-        gp.sendReport(report.raw, sizeof(report.raw));
-        yield();
+        hidTxReady = false;         
+        HID.SendReport(0, report.raw, sizeof(report.raw));
 
         // mark complete
         e.hasPending   = false;
@@ -213,6 +214,7 @@ void HIDManager_sendReport(const char* label, int32_t rawValue) {
         return;
     }
 
+    #if defined(SELECTOR_DWELL_MS) && (SELECTOR_DWELL_MS > 0)
     // buffer selectors
     if (e->group > 0) {
         e->pendingValue   = dcsValue;
@@ -221,6 +223,7 @@ void HIDManager_sendReport(const char* label, int32_t rawValue) {
         // debugPrintf("🔁 [DCS] Buffer Selection for GroupID: %u - %s %u\n", e->group, label, e->pendingValue);
         return;
     }
+    #endif
 
     // non-selector: need endpoint
     if (!HID_can_send_report())
@@ -237,9 +240,8 @@ void HIDManager_sendReport(const char* label, int32_t rawValue) {
     else
         report.buttons &= ~mask;
 
-    // send
-    gp.sendReport(report.raw, sizeof(report.raw));
-    yield();
+    hidTxReady = false;
+    HID.SendReport(0, report.raw, sizeof(report.raw));
 
     // update history
     e->lastValue    = dcsValue;
@@ -324,8 +326,9 @@ void HIDManager_moveAxis(const char* dcsIdentifier,
         if (e && applyThrottle(*e, dcsIdentifier, dcsValue, /*force=*/false)) {
             // send the raw HID report
             if (HID_can_send_report()) {
-                gp.sendReport(report.raw, sizeof(report.raw));
-                yield();
+                hidTxReady = false;
+                HID.SendReport(0, report.raw, sizeof(report.raw));
+
                 // update shared history
                 e->lastValue    = dcsValue;
                 e->lastSendTime = millis();
@@ -338,7 +341,11 @@ void HIDManager_moveAxis(const char* dcsIdentifier,
 
 // Commit Deferred HID report for an entire panel
 void HIDManager_commitDeferredReport(const char* deviceName) {
-    // 1) Ensure the HID endpoint is ready
+
+      // Skip is we are in DCS-MODE
+    if (isModeSelectorDCS()) return;
+
+    // Ensure the HID endpoint is ready
     if (!HID_can_send_report()) {
       debugPrintf("[DCS] ❌ Could NOT send deferred report for %s\n", deviceName);
       return;
@@ -346,8 +353,7 @@ void HIDManager_commitDeferredReport(const char* deviceName) {
 
     // 2) Send the raw 64-byte gamepad report
     hidTxReady = false;
-    gp.sendReport(report.raw, sizeof(report.raw));
-    yield();
+    HID.SendReport(0, report.raw, sizeof(report.raw));
 
     // 3) (Optional) Debug
     debugPrintf("🛩️ [HID] Deferred Report: %s\n", deviceName);
@@ -382,9 +388,9 @@ void HIDManager_keepAlive() {
     // Only send if report is unchanged AND it's been over 1 second
     if (memcmp(lastKeepAliveReport, report.raw, sizeof(report.raw)) == 0) {
         if (millis() - lastKeepAliveMillis >= KEEP_ALIVE_INTERVAL_MS) {
-          hidTxReady = false;
-          gp.sendReport(report.raw, sizeof(report.raw));
-          yield();
+          hidTxReady = false;          
+          HID.SendReport(0, report.raw, sizeof(report.raw));
+
           lastKeepAliveMillis = millis();
         }
     } else {
@@ -516,53 +522,56 @@ void HIDManager_setNamedButton(const char* name, bool deferSend, bool pressed) {
   else
     report.buttons &= ~mask;
 
+  // OJO Cambio recient
   if (!deferSend) {
     HIDManager_sendReport(name, pressed ? m->oride_value : 0);
     // HIDManager_sendReport(name, pressed ? 1 : 0);
   }
 }
 
-// Initialize USB HID
 void HIDManager_begin() {
 
-  // Load input bitmasks
+  // Load our Group Bitmasks
   buildHIDGroupBitmasks();
 
-  // Load USB Stack
+  // Descriptors
+  USB.productName("FA-18C Cock Con");               // Product string
+  USB.manufacturerName("Bojote Industries");        // Manufacturer string
+  USB.serialNumber("FA18C-JEAL-01");                // Serial number string
+  USB.VID(USB_VID);
+  USB.PID(USB_PID);
+
+  // Register Device (just before calling USB.begin) but only if we are in HID mode
+  if (!isModeSelectorDCS()) HID.addDevice(&gamepad, sizeof(hidReportDesc));
+
   #if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
-  USB.VID(USB_VID); // Set Vendor ID
-  USB.PID(USB_PID); // Set Product ID
+  delay(1000);
   USB.begin();
+  delay(100);
   #endif
 
+  // Serial for DCS-BIOS
   Serial.setRxBufferSize(SERIAL_RX_BUFFER_SIZE);
+  Serial.setTxTimeoutMs(25);  // To avoid CDC getting stuck when SOCAT starts acting up
   Serial.begin(250000);
+  Serial.enableReboot(true); // Should be set to false for PRODUCTION, true for development
   delay(3000);
 
-  // Init DCSBIOS
-  DCSBIOS_init();
-
-// We only initialize this when in HID mode, so we'll be effectively CDC only
-  if(!isModeSelectorDCS()) {
-    // Subscribe to HID events
+  if (!isModeSelectorDCS()) {
     setupHIDEvents();
-    // Start HID
     HID.begin();
-    while (!HID.ready()) { delay(10); }; //Do not continue until HID is ready
   }
 }
 
 void HIDManager_loop() {
-
-  // Calls our DCSBIOSBridge Loop function
-  DCSBIOS_loop(); 
 
   #if ENABLE_HID_KEEPALIVE
   // Dont send HID reports if using DCS-BIOS mode switch
   if (!isModeSelectorDCS()) HIDManager_keepAlive();
   #endif
 
+  #if defined(SELECTOR_DWELL_MS) && (SELECTOR_DWELL_MS > 0)
   // In HID mode, flush any buffered selector-group presses
-  if (!isModeSelectorDCS()) flushBufferedHidCommands();  
-
+  if (!isModeSelectorDCS()) flushBufferedHidCommands();
+  #endif
 }

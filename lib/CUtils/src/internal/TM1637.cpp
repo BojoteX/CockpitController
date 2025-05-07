@@ -4,10 +4,6 @@
 //
 //
 // **************************************************************
-
-// OCD Stuff... 
-portMUX_TYPE tm1637_mux = portMUX_INITIALIZER_UNLOCKED;
-
 #define TM1637_CMD_SET_ADDR  0xC0
 #define TM1637_CMD_DISP_CTRL 0x88
 
@@ -145,8 +141,6 @@ void tm1637_stop(TM1637Device &dev) {
 }
 
 bool tm1637_writeByte(TM1637Device &dev, uint8_t b) {
-    portENTER_CRITICAL(&tm1637_mux);
-
     pinMode(dev.dioPin, OUTPUT);
     for (uint8_t i = 0; i < 8; ++i) {
         digitalWrite(dev.clkPin, LOW);
@@ -164,8 +158,6 @@ bool tm1637_writeByte(TM1637Device &dev, uint8_t b) {
     bool ack = digitalRead(dev.dioPin) == 0;
     digitalWrite(dev.clkPin, LOW);
     pinMode(dev.dioPin, OUTPUT);
-
-    portEXIT_CRITICAL(&tm1637_mux);
     return ack;
 }
 

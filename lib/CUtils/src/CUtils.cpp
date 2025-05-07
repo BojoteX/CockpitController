@@ -1,66 +1,84 @@
 // CUtils.cpp
-// Centralized management for controllers
-
-#include <vector>
+#include <Arduino.h>
+#include <Wire.h>
+#include <FastLED.h>
+#include <cstring>
+#include <cstdio>
 #include "CUtils.h"
 
-// All Controller Management is here
-#include "internal/GPIO.cpp"
-#include "internal/WS2812.cpp"
-#include "internal/TM1637.cpp"
-#include "internal/GN1640.cpp"
+// Choose a compile-time constant that’s safely ≥ panelLEDsCount.
+// Here we use 128 as a reasonable upper bound:
+static int displayedIndexes[128];
+static int displayedCount = 0;
+
+// —— globals —— 
+I2CDeviceInfo   discoveredDevices[MAX_DEVICES];
+uint8_t         discoveredDeviceCount = 0;
+const char*     panelNameByAddr[I2C_ADDR_SPACE] = { nullptr };
+
+// TM1637 device instances (must match externs)
+TM1637Device RA_Device;
+TM1637Device LA_Device;
+
+// PCA9555 write/read cache
+// indexed by (address - 0x20), port 0 or 1
+uint8_t PCA9555_cachedPortStates[8][2] = {{0}};
+
+// — include and compile each internal module ——
+#include "internal/GPIO.cpp"    
+#include "internal/WS2812.cpp"  
+#include "internal/TM1637.cpp"  
+#include "internal/GN1640.cpp"  
 #include "internal/PCA9555.cpp" 
 
-// ********************************************************
-// Panel and Global meta-command handler
-//
-//
-//
-// ********************************************************
-
-enum class PanelID : uint8_t {
-  ECM    	= 0x22,
-  BRAIN   	= 0x26,
-  ARM    	= 0x5B,
-  UNKNOWN 	= 0x00
+// —— your single‐source panel table —— 
+struct PanelDef { uint8_t addr; PanelID id; const char* label; };
+static constexpr PanelDef kPanels[] = {
+  { 0x22, PanelID::ECM,   "ECM Panel"            },
+  { 0x26, PanelID::BRAIN, "Brain / IRCool Panel" },
+  { 0x5B, PanelID::ARM,   "Master Arm Panel"     },
 };
 
-PanelID getPanelID(uint8_t address) {
-  switch (address) {
-    case 0x22: return PanelID::ECM;
-    case 0x26: return PanelID::BRAIN;
-    case 0x5B: return PanelID::ARM;
-    default:   return PanelID::UNKNOWN;
+// —— scan only known panels —— 
+void scanConnectedPanels() {
+  discoveredDeviceCount = 0;
+  memset(panelNameByAddr, 0, sizeof(panelNameByAddr));
+
+  for (auto &p : kPanels) {
+    bool present = false;
+    for (uint8_t attempt = 0; attempt < 3; ++attempt) {
+      Wire.beginTransmission(p.addr);
+      Wire.write((uint8_t)0x00);
+      if (Wire.endTransmission() == 0 &&
+          Wire.requestFrom(p.addr, (uint8_t)1) == 1) {
+        Wire.read();
+        present = true;
+        break;
+      }
+      delay(5);
+    }
+    if (!present || discoveredDeviceCount >= MAX_DEVICES) continue;
+    discoveredDevices[discoveredDeviceCount++] = { p.addr, p.label };
+    panelNameByAddr[p.addr] = p.label;
   }
 }
 
-#define MAX_DEVICES 10
+PanelID getPanelID(uint8_t address) {
+  for (auto &p : kPanels)
+    if (p.addr == address) return p.id;
+  return PanelID::UNKNOWN;
+}
 
-struct I2CDeviceInfo {
-  uint8_t address;
-  const char* label;
-};
+const char* panelIDToString(PanelID id) {
+  for (auto &p : kPanels)
+    if (p.id == id) return p.label;
+  return "Unknown Panel";
+}
 
-I2CDeviceInfo discoveredDevices[MAX_DEVICES];
-uint8_t discoveredDeviceCount = 0;
-
-void scanConnectedPanels() {
-  discoveredDeviceCount = 0;
-  delay(500); // PCA wake-up time
-
-  for (uint8_t addr = 0x03; addr <= 0x77; addr++) {
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0 && discoveredDeviceCount < MAX_DEVICES) {
-      const char* label = nullptr;
-      switch (getPanelID(addr)) {
-        case PanelID::ECM:    label = "ECM Panel"; break;
-        case PanelID::BRAIN:  label = "Brain / IRCool Panel"; break;
-        case PanelID::ARM:    label = "Master Arm Panel"; break;
-        default:              label = "Unknown Panel"; break;
-      }
-      discoveredDevices[discoveredDeviceCount++] = { addr, label };
-    }
-  }
+bool panelExists(uint8_t targetAddr) {
+  for (uint8_t i = 0; i < discoveredDeviceCount; ++i)
+    if (discoveredDevices[i].address == targetAddr) return true;
+  return false;
 }
 
 void printDiscoveredPanels() {
@@ -68,89 +86,102 @@ void printDiscoveredPanels() {
     debugPrintln("No I2C devices found.");
     return;
   }
-
   debugPrintln("\n🔎 === Discovered I2C Devices ===");
   debugPrintln("📋 Address    | Device Description");
   debugPrintln("──────────────|─────────────────────────────");
-
   for (uint8_t i = 0; i < discoveredDeviceCount; ++i) {
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "📡 0x%02X       | %s", 
-             discoveredDevices[i].address, 
+    char buf[64];
+    snprintf(buf, sizeof(buf),
+             "📡 0x%02X       | %s",
+             discoveredDevices[i].address,
              discoveredDevices[i].label);
-    debugPrintln(buffer);
+    debugPrintln(buf);
   }
-
   debugPrintln("────────────────────────────────────────────\n");
 }
 
-// *****************************************************
-// Panel LED Detection for DEBUGING 
-// *****************************************************
-
-// Index mapping for displayed LED menu
-std::vector<int> displayedIndexes(panelLEDsCount);
-int displayedCount = 0;
-
+// —— LED Debug Menu  —— 
 void printLEDMenu() {
-  displayedCount = 0;  
+  displayedCount = 0;
   constexpr int columns = 3;
   constexpr int colWidth = 25;
   constexpr int bufSize = 4096;
   char buffer[bufSize];
   int cursor = 0;
 
-  cursor += snprintf(buffer + cursor, bufSize - cursor, "\n--- LED Selection Menu ---\n\n");
+  cursor += snprintf(buffer + cursor, bufSize - cursor,
+                     "\n--- LED Selection Menu ---\n\n");
 
-  for (int i = 0; i < panelLEDsCount; i++) {
-    cursor += snprintf(buffer + cursor, bufSize - cursor, "%d: %s", displayedCount, panelLEDs[i].label);
-
+  for (int i = 0; i < panelLEDsCount; ++i) {
+    cursor += snprintf(buffer + cursor, bufSize - cursor,
+                       "%d: %s", displayedCount, panelLEDs[i].label);
     int len = strlen(panelLEDs[i].label);
-    for (int s = 0; s < colWidth - len; s++) {
-      if (cursor < bufSize - 1) buffer[cursor++] = ' ';
+    for (int s = 0; s < colWidth - len && cursor < bufSize - 1; ++s) {
+      buffer[cursor++] = ' ';
     }
-
     displayedIndexes[displayedCount++] = i;
-
     if ((i + 1) % columns == 0 || i == panelLEDsCount - 1) {
       if (cursor < bufSize - 1) buffer[cursor++] = '\n';
     }
   }
 
-  buffer[cursor] = '\0'; // Null-terminate
+  buffer[cursor] = '\0';
   Serial.print(buffer);
-
   #if DEBUG_USE_WIFI
-  // #include "WiFiDebug.h"
   wifiDebugPrintln("See serial console for LED test");
   #endif
 }
 
+/*
 void handleLEDSelection() {
   while (true) {
     Serial.println("Enter LED number to activate (or press Enter to exit):");
+    while (!Serial.available()) yield();
 
-    while (!Serial.available());
-    String input = Serial.readStringUntil('\n');
+    	// String input = Serial.readStringUntil('\n');
+	char inputBuf[128];
+	size_t len = Serial.readBytesUntil('\n', inputBuf, sizeof(inputBuf) - 1);
+	inputBuf[len] = '\0';
 
-    if (input.length() == 0) break;  // Exit if Enter is pressed without input
+    if (input.length() == 0) break;
 
-    int userSelection = input.toInt();
-    if (userSelection >= 0 && userSelection < displayedCount) {
-      int actualIndex = displayedIndexes[userSelection];
-      Serial.print("Activating LED: ");
-      Serial.printf("%s\n", panelLEDs[actualIndex].label);
-
-      setLED(panelLEDs[actualIndex].label, true, 100);
+    int sel = input.toInt();
+    if (sel >= 0 && sel < displayedCount) {
+      int idx = displayedIndexes[sel];
+      Serial.printf("Activating LED: %s\n", panelLEDs[idx].label);
+      setLED(panelLEDs[idx].label, true, 100);
       delay(5000);
-      setLED(panelLEDs[actualIndex].label, false, 0);
-
-      Serial.print("Deactivated LED: ");
-      Serial.printf("%s\n", panelLEDs[actualIndex].label);
-
-      // Clear the screen
+      setLED(panelLEDs[idx].label, false, 0);
+      Serial.printf("Deactivated LED: %s\n", panelLEDs[idx].label);
       Serial.printf("\033[2J\033[H");
+      printLEDMenu();
+    } else {
+      Serial.println("Invalid selection or unsupported LED.");
+    }
+  }
+}
+*/
 
+void handleLEDSelection() {
+  while (true) {
+    Serial.println("Enter LED number to activate (or press Enter to exit):");
+    while (!Serial.available()) yield();
+
+    char inputBuf[128];
+    size_t len = Serial.readBytesUntil('\n', inputBuf, sizeof(inputBuf) - 1);
+    inputBuf[len] = '\0';
+
+    if (len == 0) break;
+
+    int sel = atoi(inputBuf);
+    if (sel >= 0 && sel < displayedCount) {
+      int idx = displayedIndexes[sel];
+      Serial.printf("Activating LED: %s\n", panelLEDs[idx].label);
+      setLED(panelLEDs[idx].label, true, 100);
+      delay(5000);
+      setLED(panelLEDs[idx].label, false, 0);
+      Serial.printf("Deactivated LED: %s\n", panelLEDs[idx].label);
+      Serial.printf("\033[2J\033[H");
       printLEDMenu();
     } else {
       Serial.println("Invalid selection or unsupported LED.");
@@ -158,61 +189,28 @@ void handleLEDSelection() {
   }
 }
 
-// *****************************************************
-// Panel LED Detection for DEBUGING 
-// *****************************************************
-
-// Call this instead of calling DcsbiosProtocolReplay() directly
+// —— Replay SOCAT Stream for debugging without using serial —— 
 void runReplayWithPrompt() {
-    bool infinite = false;
+  bool infinite = false;
+  while (true) {
+    DcsbiosProtocolReplay();
+    if (infinite) continue;
 
-    while ( true ) {
-        // 1) Run one iteration of your replay
-        DcsbiosProtocolReplay();
+    Serial.println("\n=== REPLAY FINISHED ===");
+    Serial.println("1) One more iteration");
+    Serial.println("2) Run infinitely");
+    Serial.println("3) Quit to main program");
+    Serial.print("Choose [1-3]: ");
+    while (!Serial.available()) yield();
+    char c = Serial.read();
+    while (Serial.available()) Serial.read();
+    Serial.println(c);
 
-        // 2) If we’re in “infinite” mode, just loop back immediately
-        if ( infinite ) continue;
-
-        // 3) Otherwise prompt the user
-        Serial.println();
-        Serial.println(F("=== REPLAY FINISHED ==="));
-        Serial.println(F("1) One more iteration"));
-        Serial.println(F("2) Run infinitely"));
-        Serial.println(F("3) Quit to main program"));
-        Serial.print  (F("Choose [1-3]: "));
-
-        // 4) Wait (cooperatively) for a keypress
-        while ( !Serial.available() ) {
-            yield(); 
-        }
-
-        char c = Serial.read();
-        // flush any extra characters (newline, etc)
-        while ( Serial.available() ) {
-            Serial.read();
-        }
-        Serial.println(c);
-
-        // 5) Dispatch
-        switch ( c ) {
-          case '1':
-            // just loop once more
-            break;
-
-          case '2':
-            // flip into infinite mode
-            infinite = true;
-            Serial.println(F(">>> entering infinite replay mode <<<"));
-            break;
-
-          case '3':
-            Serial.println(F(">>> exiting replay, returning to normal execution <<<"));
-            return;
-
-          default:
-            Serial.println(F("Invalid choice; please enter 1, 2, or 3."));
-            // re‐prompt on next iteration (doesn't advance replay)
-            continue;
-        }
+    switch (c) {
+      case '1': break;
+      case '2': infinite = true; Serial.println(">>> infinite replay mode <<<"); break;
+      case '3': Serial.println(">>> exiting replay <<<"); return;
+      default:  Serial.println("Invalid choice; please enter 1, 2, or 3."); break;
     }
+  }
 }

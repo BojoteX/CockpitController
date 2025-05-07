@@ -8,10 +8,6 @@
 #include "src/PerfMonitor.h"
 #endif
 
-// Device instances (ONLY ONCE)
-TM1637Device RA_Device;
-TM1637Device LA_Device;
-
 // Pre-initialize all GPIO pins used by LEDs
 static void preconfigureGPIO() {
     for (uint16_t i = 0; i < panelLEDsCount; ++i) {

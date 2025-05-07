@@ -9,20 +9,22 @@
 
 // Required for Descriptor handling
 #define USB_VID		        0xCAFE
-#define USB_PID		        0xFEE2
-#define USB_MANUFACTURER  "Bojote"
-#define USB_PRODUCT       "F/A-18C Cockpit Controller"
-#define USB_SERIAL        "SN-ZZ18-99"
+#define USB_PID		        0xD1F8
+#define USB_MANUFACTURER  "Bojote Inc"
+#define USB_PRODUCT_HID   "FA-18 Brain HID"
+#define USB_PRODUCT_CDC   "FA-18 Brain Serial"
+#define USB_PRODUCT       "FA-18 Brain Controller"
+#define USB_SERIAL        "SN-XFA18C-0003"
 #define USB_LANG_ID       0x0409  // English (US)
-#define USB_IF_CDC_NAME   USB_PRODUCT
-#define USB_IF_HID_NAME   USB_PRODUCT
+#define USB_IF_CDC_NAME   USB_PRODUCT_CDC
+#define USB_IF_HID_NAME   USB_PRODUCT_HID
 #define USB_CFG_NAME      USB_PRODUCT
 
 // There is really no need for this, but if for you, ensuring cockpit sync is a top priority, use it. The design and architecture of this 
 // program is already fault-tolerant and throttles ALL sends to match DCS_UPDATE_RATE_HZ and avoid skipping commands. Like a PRO LEVEL
 // cockpit sim. 
 #define ENABLE_DCS_COMMAND_KEEPALIVE  0               // Explained above
-#define ENABLE_HID_KEEPALIVE          0               // Same, but for HID
+#define ENABLE_HID_KEEPALIVE          1               // Same, but for HID
 
 // Self explanatory, don't change if you don't know what you are doing
 #define DCS_UPDATE_RATE_HZ            30              // Change only if DCSBIOS ever changes its update freq (highly unlinkely)
@@ -36,7 +38,7 @@
 #define DCS_KEEPALIVE_POLL_INTERVAL POLLING_RATE_HZ   // How often to check for keep-alive conditions
 
 // Your CDC/Serial receive buffer
-#define SERIAL_RX_BUFFER_SIZE        4096              
+#define SERIAL_RX_BUFFER_SIZE        1024              
 
 // Set to 1 to enable 400MHz PCA Bus FAST MODE   
 #define PCA_FAST_MODE         1   
@@ -64,7 +66,7 @@
 #define DEBUG_USE_WIFI 1 
 
 // Enable Profiling for specific blocks with beginProfiling / endProfiling (not for use in production)
-#define DEBUG_PERFORMANCE 1 
+#define DEBUG_PERFORMANCE 1
 
 // This will output via UDP ONLY so you need to enable DEBUG_USE_WIFI.
 #define VERBOSE_PERFORMANCE_ONLY 0

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "HIDDescriptors.h"
-// Shared by HID and DCSBIOS for Dwell-time filtering logic 
+
 struct CommandHistoryEntry {
     const char*     label;
     uint16_t        lastValue;
