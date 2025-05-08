@@ -10,7 +10,6 @@ JSON_FILE     	= "FA-18C_hornet.json"
 OUTPUT_HEADER 	= "DCSBIOSBridgeData.h"
 INPUT_REFERENCE = "InputMapping.h"
 LED_REFERENCE 	= "LEDMapping.h"
-PROCESS_ALL   	= False  # apply target_objects filtering to ALL three tables
 KNOWN_DEVICES 	= {
     "GPIO",
     "PCA9555",
@@ -20,7 +19,11 @@ KNOWN_DEVICES 	= {
     "NONE",
 }
 
-# Panels to include when PROCESS_ALL is False. This is NEVER to be altered in any way
+# PROCESS_ALL Should ALMOST NEVER be set to True. If you do, it will map every LED, GAUGE and CONTROL. Use it for PERFORMANCE TESTING
+# Ideally, what you do is set PROCESS_ALL to False and select your specific panels in target_objects instead 
+PROCESS_ALL = True
+
+# Panels to include when PROCESS_ALL is False. 
 target_objects = {
     'Fire Systems',
     'Cockpit Altimeter',
@@ -123,19 +126,16 @@ for panel, controls in data.items():
         if max_val is None or max_val < 0:
             continue
 
-        # 1) 'button' in description → momentary
         if 'button' in desc_lower:
-            selector_entries.append((ident, ident, 1, 'momentary', 0))
+            selector_entries.append((ident, ident, 1, 'momentary', 0, "PRESS"))
             continue
 
-        # 2) strict '_cover' → momentary
         if lid.endswith('_cover') or lid.startswith('cover_') or '_cover_' in lid:
-            selector_entries.append((ident, ident, 1, 'momentary', 0))
+            selector_entries.append((ident, ident, 1, 'momentary', 0, "OPEN"))
             continue
 
-        # 3) momentary_last_position → momentary
         if api_variant == 'momentary_last_position':
-            selector_entries.append((ident, ident, 1, 'momentary', 0))
+            selector_entries.append((ident, ident, 1, 'momentary', 0, "PRESS"))
             continue
 
         # 4) discrete selectors: split labels
@@ -168,39 +168,16 @@ for panel, controls in data.items():
         # 5) append (with reversed value and group for slash‑split selectors)
         if ctype in ('limited_dial', 'analog_dial'):
             # Analog input: use single label with type 'analog' and no group
-            selector_entries.append((ident, ident, max_val, 'analog', 0))
+            selector_entries.append((ident, ident, max_val, 'analog', 0, "LEVEL"))
         else:
             # 5) append as discrete selector/momentary
             for i, lab in enumerate(labels):
                 clean = lab.upper().replace(' ','_')
                 if useSlash:
                     val = (count - 1) - i
-                    selector_entries.append((f"{ident}_{clean}", ident, val, ctype, currentGroup))
+                    selector_entries.append((f"{ident}_{clean}", ident, val, ctype, currentGroup, clean))
                 else:
-                    selector_entries.append((f"{ident}_{clean}", ident, i, ctype, 0))
-
-
-
-
-
-# -------- BUILD TRACKED STATES (toggle + covers) --------
-
-tracked_labels = set()
-
-# 1. Covers: selector labels containing "_COVER"
-for full, cmd, val, ct, grp in selector_entries:
-    if "_COVER" in full:
-        tracked_labels.add(full)
-
-# 2. Toggles: momentary inputs where oride_label matches a CT_SELECTOR output
-output_selector_labels = {e['label'] for e in output_entries if e['controlType'] == 'CT_SELECTOR'}
-for full, cmd, val, ct, grp in selector_entries:
-    if ct == "momentary" and cmd in output_selector_labels:
-        tracked_labels.add(cmd)
-
-# 3. Sort for stability
-tracked_labels = sorted(tracked_labels)
-
+                    selector_entries.append((f"{ident}_{clean}", ident, i, ctype, 0, clean))
 
 # -------- WRITE HEADER FOR OUTPUT AND SELECTORS -------- 
 
@@ -286,24 +263,16 @@ with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
     f.write("}\n\n")
 
     # Selectors: add group field
-    f.write("struct SelectorEntry { const char* label; const char* dcsCommand; uint16_t value; const char* controlType; uint16_t group; };\n")
+    f.write("struct SelectorEntry { const char* label; const char* dcsCommand; uint16_t value; const char* controlType; uint16_t group; const char* posLabel; };\n")
     f.write("static const SelectorEntry SelectorMap[] = {\n")
-    for full, cmd, val, ct, grp in selector_entries:
-        f.write(f'    {{ "{full}","{cmd}",{val},"{ct}",{grp} }},\n')
+    for full, cmd, val, ct, grp, lab in selector_entries:
+        f.write(f'    {{ "{full}","{cmd}",{val},"{ct}",{grp},"{lab}" }},\n')
+
     f.write("};\nstatic const size_t SelectorMapSize = sizeof(SelectorMap)/sizeof(SelectorMap[0]);\n")
-
-
-    f.write("\n// Tracked toggle & cover states\n")
-    f.write("struct TrackedStateEntry { const char* label; bool value; };\n")
-    f.write("static TrackedStateEntry trackedStates[] = {\n")
-    for label in tracked_labels:
-        f.write(f'    {{ "{label}", false }},\n')
-    f.write("};\n")
-    f.write("static const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);\n")
 
     # Build a flat list of all unique oride_labels and mark selectors with group > 0
     command_tracking = {}
-    for full, cmd, val, ct, grp in selector_entries:
+    for full, cmd, val, ct, grp, lab in selector_entries:
         if cmd not in command_tracking:
             command_tracking[cmd] = (grp > 0, grp)
 
@@ -363,9 +332,14 @@ if os.path.exists(INPUT_REFERENCE):
                 "group":       int(d["group"])
             }
 
+# --- TEMP: Strip lab for InputMapping merge ---
+selector_entries_inputmap = [
+    (full, cmd, val, ct, grp) for (full, cmd, val, ct, grp, lab) in selector_entries
+]
+
 # 2) merge into a new list, preserving any user edits by label
 merged = []
-for full, cmd, val, ct, grp in selector_entries:
+for full, cmd, val, ct, grp in selector_entries_inputmap:
     if full in existing_map:
         e = existing_map[full]
         merged.append((

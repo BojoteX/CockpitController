@@ -54,6 +54,22 @@ inline void perfDebugPrintf(const char* format, ...) {
 #endif
 }
 
+void logHeapStatus(const char* label) {
+    multi_heap_info_t info;
+    heap_caps_get_info(&info, MALLOC_CAP_8BIT);
+    Serial.printf("[HEAP] %s: Free=%u | Largest=%u | Frag=%u%%\n",
+        label, (uint32_t)info.total_free_bytes,
+        (uint32_t)info.largest_free_block,
+        100 - ((info.largest_free_block * 100) / info.total_free_bytes));
+}
+
+void logCrashDetailIfAny() {
+    esp_reset_reason_t reason = esp_reset_reason();
+    if (reason == ESP_RST_PANIC) {
+        debugPrintln("🧠 Backtrace not available — use UART for more detail.");
+    }
+}
+
 // True if this reset should trigger an alert
 static bool _isBadReset(esp_reset_reason_t r) {
     return (r == ESP_RST_INT_WDT)   ||
@@ -94,6 +110,7 @@ void initPerfMonitor() {
             debugPrintln("\n----- ALERT: Unexpected Reset -----");
             debugPrintf("Last reset cause: %s (%d)\n\n", _resetReasonToString(reason), reason);
 
+            logCrashDetailIfAny();
             perfMonitorUpdate();
 
             pinMode(LED_BUILTIN, OUTPUT);

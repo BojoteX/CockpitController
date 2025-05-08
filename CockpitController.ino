@@ -5,7 +5,6 @@
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
-#include "src/PsramConfig.h" // We init PSRAM when available only
 #include <Wire.h>
 
 #if DEBUG_PERFORMANCE
@@ -76,14 +75,6 @@ void checkHealth() {
                        ? 100.0f * (1.0f - (float)largest_psram / (float)free_psram)
                        : 0.0f;
 
-  // Check if PSRAM is available
-  if (initPSRAM()) {
-    debugPrintln("PSRAM is available on this device");
-  }
-  else {
-    debugPrintln("PSRAM is NOT available on this device");
-  }
-
   // --- Print it all out ---
   debugPrintf(
     "SRAM free: %6u KB, largest: %6u KB, frag: %5.1f%%\n",
@@ -115,9 +106,6 @@ void setup() {
   // Sets standard read resolution and attenuation
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
-
-  // Init PSRAM (if available)
-  initPSRAM();
 
   // Activates during DEBUG mode, useful to get Port/Bit info for PCA Devices
   enablePCA9555Logging(DEBUG);
@@ -207,8 +195,8 @@ void setup() {
   }
 
   // Syncronize your active panels states
-  // debugPrintln("Initializing Panel states....");
-  // initializePanels();
+  debugPrintln("Initializing Panel states....");
+  initializePanels();
 
   // Initializes your LEDs / Displays etc.
   debugPrintln("Initializing LEDs...");
@@ -220,23 +208,21 @@ void setup() {
     handleLEDSelection();
     debugPrintln("Exiting LED selection menu. Continuing execution...");
   #endif 
-
-  // Uses a header object (created from dcsbios_data.json) to simulate DCS traffic internally WITHOUT using your serial port (great for debugging) 
+  
   #if IS_REPLAY
-  // Begin simulated loop. 
-  runReplayWithPrompt();
+  replayData();
   #endif
 
+  // Shows available mem/heap frag etc.
+  checkHealth();
+
+  debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
   if(DEBUG) {
     debugPrintln("Device is ready! (DEBUG ENABLED)");
   }
   else {
     debugPrintln("Device is ready!");
   }
-  debugPrintf("Selected mode: %s\n", isModeSelectorDCS() ? "DCS-BIOS" : "HID");
-
-  // Shows available mem/heap frag etc.
-  checkHealth();
 }
 
 // Arduino Loop Routine
@@ -295,4 +281,6 @@ void loop() {
   #if DEBUG_PERFORMANCE
   perfMonitorUpdate();
   #endif
+
+  // yield();
 }

@@ -20,22 +20,15 @@ struct CommandHistoryEntry {
 CommandHistoryEntry*  dcsbios_getCommandHistory();
 size_t                dcsbios_getCommandHistorySize();
 
-// Tracked state lookup/setters
-bool getTrackedState(const char* label);
-void setTrackedState(const char* label, bool value);
-
-// Used for efficient index lookup into trackedStates[]
-int trackedIndexFor(const char* label);
-
 // Throttling logic
 bool throttleIdenticalValue(const char* label, CommandHistoryEntry &e, uint16_t value, bool force);
 CommandHistoryEntry* findCmdEntry(const char* label);
 
-// ───── Tracked State Accessors (macros) ─────
-#define isCoverOpen(label)     getTrackedState(label)
-#define isToggleOn(label)      getTrackedState(label)
-#define setCoverState(label,v) setTrackedState(label, v)
-#define setToggleState(label,v) setTrackedState(label, v)
+// ───── Tracked State Accessors via CommandHistory ─────
+#define isCoverOpen(label)     (findCmdEntry(label) ? (findCmdEntry(label)->lastValue > 0) : false)
+#define isToggleOn(label)      isCoverOpen(label)
+#define setCoverState(label,v) sendDCSBIOSCommand(label, v ? 1 : 0, true)
+#define setToggleState(label,v) setCoverState(label,v)
 
 // ───── Core Init / Loop ─────
 void DCSBIOS_init();
@@ -54,3 +47,9 @@ void DcsbiosProtocolReplay();
 
 // ───── Optional Helpers ─────
 bool applyThrottle(CommandHistoryEntry &e, const char* label, uint16_t value, bool force=false);
+
+// ───── Forward declarations ─────
+static void flushBufferedDcsCommands();
+uint16_t getLastKnownState(const char* label);
+
+void replayData();

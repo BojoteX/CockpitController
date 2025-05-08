@@ -28,7 +28,7 @@
 
 // Self explanatory, don't change if you don't know what you are doing
 #define DCS_UPDATE_RATE_HZ            30              // Change only if DCSBIOS ever changes its update freq (highly unlinkely)
-#define HID_REPORT_RATE_HZ            60              // Max 60Hz HID report rate to avoid spamming the CDC Endpoint / USB
+#define HID_REPORT_RATE_HZ           250              // Max 60Hz HID report rate to avoid spamming the CDC Endpoint / USB
 #define POLLING_RATE_HZ              250              // Panel and HID polling rate in Hz (125, 250, 500 Hz)
 #define VALUE_THROTTLE_MS             50              // How long (ms) to skip sending the same value again
 #define ANY_VALUE_THROTTLE_MS         33              // How long (ms) to skip sending different values (prevents spamming the CDC endpoint)
@@ -74,7 +74,7 @@
 // You'll see a Menu when you start the device to test LEDS via console.  
 #define TEST_LEDS 0
 
-// Does the device have a HID/DCS Mode selector? if so, what PIN? 
+// Does the device have a HID/DCS Mode selector? if so set HAS_HID_MODE_SELECTOR to 1 and PIN GPIO, otherwise HAS_HID_MODE_SELECTOR 0  
 #define HAS_HID_MODE_SELECTOR 1
 #define MODE_SWITCH_PIN 33 // Mode Selection Pin (DCS-BIOS/HID)
 
@@ -94,6 +94,9 @@
   #define LED_BUILTIN 2
 #endif
 
+#define MAX_TRACKED_RECORDS 512  // default safety cap
+#define MAX_GROUPS 128  // default safety cap
+    
 // How frequent you want to see the performance snapshot + profiling blocks? requires DEBUG_PERFORMANCE enabled
 #define PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS 30
 

@@ -23,6 +23,16 @@ struct GamepadDevice : USBHIDDevice {
 };
 GamepadDevice gamepad;
 
+// Wats the max number of groups?
+constexpr size_t maxUsedGroup = []() {
+    uint16_t max = 0;
+    for (size_t i = 0; i < sizeof(InputMappings)/sizeof(InputMappings[0]); ++i) {
+        if (InputMappings[i].group > max) max = InputMappings[i].group;
+    }
+    return max;
+}();
+static_assert(maxUsedGroup < MAX_GROUPS, "❌ Too many unique selector groups — increase MAX_GROUPS in Config.h");
+
 // Flow-control flag: only send a new report once the previous one really left (not implemented for HID, only CDC)
 volatile bool hidTxReady = true;
 
@@ -30,8 +40,6 @@ volatile bool hidTxReady = true;
 static constexpr uint32_t USB_MOUNT_TIMEOUT = 5000;
 static constexpr uint32_t HID_READY_TIMEOUT = 2000;
 
-// Group bitmask store
-#define MAX_GROUPS 32
 static uint32_t groupBitmask[MAX_GROUPS] = {0};
 
 // Build HID group bitmasks
@@ -144,47 +152,61 @@ static const InputMapping* findHidMappingByDcs(const char* dcsLabel, uint16_t va
 }
 
 // Flush hasPending commands for selectors (dwell-time filtering logic)
-static void flushBufferedHidCommands() {
+void flushBufferedHidCommands() {
     auto history = dcsbios_getCommandHistory();
     size_t n     = dcsbios_getCommandHistorySize();
     unsigned long now = millis();
 
+    CommandHistoryEntry* groupLatest[MAX_GROUPS] = { nullptr };
+
+    // Step 1: Track most recent pending entry per group
     for (size_t i = 0; i < n; ++i) {
-        auto &e = history[i];
+        auto& e = history[i];
+        if (!e.hasPending || e.group == 0) continue;
 
-        // only multi-position selectors that have been buffered
-        if (e.group == 0 || !e.hasPending) 
-            continue;
+        if (now - e.lastChangeTime >= SELECTOR_DWELL_MS) {
+            uint16_t g = e.group;
 
-        unsigned long dt = now - e.lastChangeTime;
-        if (dt < SELECTOR_DWELL_MS) 
-            continue;  // still dwelling…
+            if (g >= MAX_GROUPS) {
+              debugPrintf("❌ FATAL: group ID %u exceeds MAX_GROUPS (%u). Halting flush.\n", g, MAX_GROUPS);
+              abort();  // Triggers clean panic for debugging
+            }
 
-        // map DCS-label+pendingValue → HID bit
-        const InputMapping* m = findHidMappingByDcs(e.label, e.pendingValue);
+            if (!groupLatest[g] || e.lastChangeTime > groupLatest[g]->lastChangeTime) {
+                groupLatest[g] = &e;
+            }
+        }
+    }
+
+    // Step 2: For each group, clear all buttons and set the active one
+    for (uint16_t g = 1; g < MAX_GROUPS; ++g) {
+        CommandHistoryEntry* winner = groupLatest[g];
+        if (!winner) continue;
+
+        const InputMapping* m = findHidMappingByDcs(winner->label, winner->pendingValue);
         if (!m) {
-            e.hasPending = false;
+            winner->hasPending = false;
             continue;
         }
 
-        // clear whole group, then set this one bit
-        report.buttons &= ~groupBitmask[e.group];
-        if (e.pendingValue > 0) {
+        // Clear all bits in this group
+        report.buttons &= ~groupBitmask[g];
+
+        // Set winner bit
+        if (winner->pendingValue > 0) {
             report.buttons |= (1UL << (m->hidId - 1));
         }
 
-        if (!HID_can_send_report()) 
-            continue;  // endpoint busy or not mounted
-
-        // emit
-        hidTxReady = false;         
+        // Try to send report
+        if (!HID_can_send_report()) continue;
+        hidTxReady = false;
         HID.SendReport(0, report.raw, sizeof(report.raw));
 
-        // mark complete
-        e.hasPending   = false;
-        e.lastValue    = e.pendingValue;
-        e.lastSendTime = now;
-        debugPrintf("🛩️ [HID] FLUSHED: %s = %u\n", e.label, e.lastValue);
+        // Finalize
+        winner->lastValue = winner->pendingValue;
+        winner->lastSendTime = now;
+        winner->hasPending = false;
+        debugPrintf("🛩️ [HID] GROUP %u FLUSHED: %s = %u\n", g, winner->label, winner->lastValue);
     }
 }
 
@@ -401,9 +423,13 @@ void HIDManager_keepAlive() {
 }
 
 void HIDManager_toggleIfPressed(bool isPressed, const char* label, bool deferSend) {
-    static std::array<bool, 64> lastStates = {false};  // Up to 64 tracked buttons
-    int index = trackedIndexFor(label);
-    if (index == -1) return;
+  
+    CommandHistoryEntry* e = findCmdEntry(label);
+    if (!e) return;
+
+    static std::array<bool, MAX_TRACKED_RECORDS> lastStates = {false};
+    int index = e - dcsbios_getCommandHistory();
+    if (index < 0 || index >= MAX_TRACKED_RECORDS) return;
 
     bool prev = lastStates[index];
     lastStates[index] = isPressed;
@@ -421,8 +447,10 @@ void HIDManager_setToggleNamedButton(const char* name, bool deferSend) {
     return;
   }
 
-  bool newState = !getTrackedState(label);
-  setTrackedState(label, newState);
+  CommandHistoryEntry* e = findCmdEntry(label);
+  if (!e) return;
+  bool newState = !(e->lastValue > 0);
+  e->lastValue = newState ? 1 : 0;
 
   if (isModeSelectorDCS()) {
     if (m->oride_label && m->oride_value >= 0)
@@ -448,15 +476,20 @@ void HIDManager_setToggleNamedButton(const char* name, bool deferSend) {
 }
 
 void HIDManager_handleGuardedToggle(bool isPressed, const char* switchLabel, const char* coverLabel, const char* fallbackLabel, bool deferSend) {
-  static std::array<bool, 64> lastState = {false};
-  int index = trackedIndexFor(switchLabel);
-  if (index == -1) return;
 
-  bool wasPressed = lastState[index];
-  lastState[index] = isPressed;
+  CommandHistoryEntry* e = findCmdEntry(switchLabel);
+  if (!e) return;
+
+  static std::array<bool, MAX_TRACKED_RECORDS> lastStates = {false};
+  int index = e - dcsbios_getCommandHistory();
+  if (index < 0 || index >= MAX_TRACKED_RECORDS) return;
+    
+  bool wasPressed = lastStates[index];
+  lastStates[index] = isPressed;
 
   if (isPressed && !wasPressed) {
-    if (!isCoverOpen(coverLabel)) {
+    CommandHistoryEntry* cover = findCmdEntry(coverLabel);
+    if (!cover || cover->lastValue == 0) {
       HIDManager_setToggleNamedButton(coverLabel, deferSend);
       debugPrintf("✅ Cover [%s] opened for [%s]\n", coverLabel, switchLabel);
     }
@@ -476,15 +509,20 @@ void HIDManager_handleGuardedToggle(bool isPressed, const char* switchLabel, con
 }
 
 void HIDManager_handleGuardedMomentary(bool isPressed, const char* buttonLabel, const char* coverLabel, bool deferSend) {
-  static std::array<bool, 64> lastStates = {false};  // up to 64 tracked
-  int index = trackedIndexFor(buttonLabel);
-  if (index == -1) return;
+
+  CommandHistoryEntry* e = findCmdEntry(buttonLabel);
+  if (!e) return;
+
+  static std::array<bool, MAX_TRACKED_RECORDS> lastStates = {false};
+  int index = e - dcsbios_getCommandHistory();
+  if (index < 0 || index >= MAX_TRACKED_RECORDS) return;
 
   bool wasPressed = lastStates[index];
   lastStates[index] = isPressed;
 
   if (isPressed && !wasPressed) {
-    if (!isCoverOpen(coverLabel)) {
+    CommandHistoryEntry* cover = findCmdEntry(coverLabel);
+    if (!cover || cover->lastValue == 0) {
       HIDManager_setToggleNamedButton(coverLabel, deferSend);
       debugPrintf("✅ Cover [%s] auto-opened\n", coverLabel);
       return; // Do not press button yet — wait for user to release and press again
@@ -525,7 +563,6 @@ void HIDManager_setNamedButton(const char* name, bool deferSend, bool pressed) {
   // OJO Cambio recient
   if (!deferSend) {
     HIDManager_sendReport(name, pressed ? m->oride_value : 0);
-    // HIDManager_sendReport(name, pressed ? 1 : 0);
   }
 }
 

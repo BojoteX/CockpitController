@@ -19,11 +19,8 @@ KNOWN_DEVICES 	= {
     "NONE",
 }
 
-# PROCESS_ALL Should ALMOST NEVER be set to True. If you do, it will map every LED, GAUGE and CONTROL. Use it for PERFORMANCE TESTING
-# Ideally, what you do is set PROCESS_ALL to False and select your specific panels in target_objects instead 
-PROCESS_ALL = True
-
-# Panels to include when PROCESS_ALL is False. 
+# Panels to include when PROCESS_ALL is False. This is NEVER to be altered in any way
+PROCESS_ALL   	= True  # apply target_objects filtering to ALL three tables
 target_objects = {
     'Fire Systems',
     'Cockpit Altimeter',

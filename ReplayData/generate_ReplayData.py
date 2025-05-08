@@ -27,7 +27,7 @@ def main():
         f.write("// Auto-generated binary replay blob\n")
         f.write("#pragma once\n")
         f.write(f"const size_t dcsbiosReplayLength = {len(binary_buffer)};\n")
-        f.write("const uint8_t dcsbiosReplayData[] PROGMEM = {\n")
+        f.write("const uint8_t dcsbiosReplayData[] = {\n")
 
         # Emit data in readable chunks
         for i in range(0, len(binary_buffer), 12):

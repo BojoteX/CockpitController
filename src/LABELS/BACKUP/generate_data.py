@@ -292,12 +292,14 @@ with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
         f.write(f'    {{ "{full}","{cmd}",{val},"{ct}",{grp} }},\n')
     f.write("};\nstatic const size_t SelectorMapSize = sizeof(SelectorMap)/sizeof(SelectorMap[0]);\n")
 
+
     f.write("\n// Tracked toggle & cover states\n")
-    f.write("TrackedStateEntry trackedStates[] = {\n")
+    f.write("struct TrackedStateEntry { const char* label; bool value; };\n")
+    f.write("static TrackedStateEntry trackedStates[] = {\n")
     for label in tracked_labels:
         f.write(f'    {{ "{label}", false }},\n')
     f.write("};\n")
-    f.write("const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);\n")
+    f.write("static const size_t trackedStatesCount = sizeof(trackedStates)/sizeof(trackedStates[0]);\n")
 
     # Build a flat list of all unique oride_labels and mark selectors with group > 0
     command_tracking = {}
@@ -307,21 +309,7 @@ with open(OUTPUT_HEADER, 'w', encoding='utf-8') as f:
 
     # ——— EMIT THE UNIFIED COMMAND HISTORY TABLE WITH GROUP + BUFFER FIELDS + HID REPORT CACHE ———
     f.write("\n// Unified Command History Table (used for throttling, optional keep-alive, and HID dedupe)\n")
-    f.write("struct CommandHistoryEntry {\n")
-    f.write("    const char*     label;             // DCS command or HID control label\n")
-    f.write("    uint16_t        lastValue;         // last DCS value sent\n")
-    f.write("    unsigned long   lastSendTime;      // millis() of last DCS send\n")
-    f.write("    bool            isSelector;        // part of a grouped selector\n")
-    f.write("    uint16_t        group;             // selector group ID (>0)\n\n")
-    f.write("    // buffering for grouped selectors:\n")
-    f.write("    uint16_t        pendingValue;      // deferred DCS value\n")
-    f.write("    unsigned long   lastChangeTime;    // millis() of last change\n")
-    f.write("    bool            hasPending;        // pendingValue != lastValue\n\n")
-    f.write("    // HID report dedupe/cache:\n")
-    f.write("    uint8_t lastReport[HID_REPORT_SIZE];   // last raw HID bytes sent\n")
-    f.write("    uint8_t pendingReport[HID_REPORT_SIZE];\n")
-    f.write("    unsigned long   lastHidSendTime;   // millis() of last HID send\n")
-    f.write("};\n\n")
+
 
     f.write("static CommandHistoryEntry commandHistory[] = {\n")
     for label, (is_selector, grp) in sorted(command_tracking.items()):

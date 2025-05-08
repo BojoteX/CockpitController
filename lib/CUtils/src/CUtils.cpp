@@ -132,36 +132,6 @@ void printLEDMenu() {
   #endif
 }
 
-/*
-void handleLEDSelection() {
-  while (true) {
-    Serial.println("Enter LED number to activate (or press Enter to exit):");
-    while (!Serial.available()) yield();
-
-    	// String input = Serial.readStringUntil('\n');
-	char inputBuf[128];
-	size_t len = Serial.readBytesUntil('\n', inputBuf, sizeof(inputBuf) - 1);
-	inputBuf[len] = '\0';
-
-    if (input.length() == 0) break;
-
-    int sel = input.toInt();
-    if (sel >= 0 && sel < displayedCount) {
-      int idx = displayedIndexes[sel];
-      Serial.printf("Activating LED: %s\n", panelLEDs[idx].label);
-      setLED(panelLEDs[idx].label, true, 100);
-      delay(5000);
-      setLED(panelLEDs[idx].label, false, 0);
-      Serial.printf("Deactivated LED: %s\n", panelLEDs[idx].label);
-      Serial.printf("\033[2J\033[H");
-      printLEDMenu();
-    } else {
-      Serial.println("Invalid selection or unsupported LED.");
-    }
-  }
-}
-*/
-
 void handleLEDSelection() {
   while (true) {
     Serial.println("Enter LED number to activate (or press Enter to exit):");

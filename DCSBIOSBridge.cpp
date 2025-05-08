@@ -3,6 +3,7 @@
 #include "src/LABELS/DCSBIOSBridgeData.h"
 #include "src/LEDControl.h"
 #include "src/HIDManager.h"
+#include "src/PsramConfig.h" // We init PSRAM when available only
 #if DEBUG_PERFORMANCE
 #include "src/PerfMonitor.h"
 #endif
@@ -15,6 +16,9 @@
 #define DCSBIOS_ESP32_CDC_SERIAL
 #include "lib/DCS-BIOS/src/DcsBios.h"
 #include "lib/DCS-BIOS/src/internal/Protocol.cpp"
+
+// Command History tracking
+static_assert(commandHistorySize <= MAX_TRACKED_RECORDS, "Not enough space for tracked entries. Increase MAX_TRACKED_RECORDS in Config.h");
 
 struct PendingUpdate {
     const char* label;
@@ -124,25 +128,6 @@ private:
 };
 DcsBiosSniffer mySniffer;
 
-int trackedIndexFor(const char* label) {
-    for (size_t i = 0; i < trackedStatesCount; ++i) {
-        if (trackedStates[i].label == label || strcmp(trackedStates[i].label, label) == 0) {
-            return static_cast<int>(i);
-        }
-    }
-    return -1;
-}
-
-bool getTrackedState(const char* label) {
-    int index = trackedIndexFor(label);
-    return (index >= 0) ? trackedStates[index].value : false;
-}
-
-void setTrackedState(const char* label, bool value) {
-    int index = trackedIndexFor(label);
-    if (index >= 0) trackedStates[index].value = value;
-}
-
 // ——— Corrected Mission Handler ———
 void onAircraftName(char* str) {
     if (str != nullptr && str[0] != '\0') {
@@ -150,7 +135,16 @@ void onAircraftName(char* str) {
         snprintf(buf, sizeof(buf), "[MISSION START] %s.\n", str);
         debugPrintf("%s", buf);
 
-        if (mySniffer.isStreamAlive()) initializePanels();
+        // This ensures your cockpit and sim always sync on mission start
+        initializePanels();
+
+        if(isModeSelectorDCS()) {
+            flushBufferedDcsCommands();
+        }
+        else {
+            flushBufferedHidCommands();
+        }
+
     } else {
         debugPrintln("[MISSION STOP]");
     }
@@ -193,27 +187,78 @@ void onLedChange(const char* label, uint16_t value, uint16_t max_value) {
 }
 
 void onSelectorChange(const char* label, unsigned int value) {
-    setTrackedState(label, value > 0);
+    CommandHistoryEntry* e = findCmdEntry(label);
+    if (e) e->lastValue = value;
 
-    const char* stateStr;
+    const char* stateStr = nullptr;
+
+    // 1. Covers
     if (strstr(label, "_COVER")) {
         stateStr = (value > 0) ? "OPEN" : "CLOSED";
-    } else {
+
+    // 2. Strict _BTN suffix match (exclude _COVER_BTN)
+    } else if (strlen(label) >= 4 && strcmp(label + strlen(label) - 4, "_BTN") == 0) {
         stateStr = (value > 0) ? "ON" : "OFF";
+
+    // 3. Lookup in SelectorMap by exact (label + value) or (dcsCommand + value)
+    } else {
+        const SelectorEntry* match = nullptr;
+
+        for (size_t i = 0; i < SelectorMapSize; ++i) {
+            const SelectorEntry& entry = SelectorMap[i];
+
+            bool matchLabelAndValue = (strcmp(entry.label, label) == 0 && entry.value == value);
+            bool matchDcsAndValue   = (strcmp(entry.dcsCommand, label) == 0 && entry.value == value);
+
+            if (matchLabelAndValue || matchDcsAndValue) {
+                match = &entry;
+                break;
+            }
+        }
+
+        if (match && match->posLabel && match->posLabel[0] != '\0') {
+            stateStr = match->posLabel;
+        } else {
+            static char fallback[16];
+            snprintf(fallback, sizeof(fallback), "POS %u", value);
+            stateStr = fallback;
+        }
     }
 
-    if(DEBUG) debugPrintf("[STATE UPDATE] %s = %s\n", label, stateStr);
+    debugPrintf("[STATE UPDATE] 🔁 %s = %s\n", label, stateStr);
 }
 
 // DcsbiosReplayData.h is generated from dcsbios_data.json using Python (see ReplayData directory). This was used in early development
 // to test locally via Serial Console. The preferred method for live debugging is WiFi UDP. See Config.h for configuration.
 #if IS_REPLAY
+// ReplayDataBuffer
+uint8_t* replayBuffer = nullptr;
 #include "ReplayData/DcsbiosReplayData.h"
+
+void replayData() {
+  // Uses a header object (created from dcsbios_data.json) to simulate DCS traffic internally WITHOUT using your serial port (great for debugging) 
+  if (initPSRAM()) {
+      replayBuffer = (uint8_t*)PS_MALLOC(dcsbiosReplayLength);
+      if (replayBuffer) {
+          memcpy(replayBuffer, dcsbiosReplayData, dcsbiosReplayLength);
+          debugPrintln("[PSRAM] ✅ Data loaded into PSRAM.");
+      } else {
+          debugPrintln("[PSRAM] ❌ Failed to allocate.");
+      }
+  } else {
+      debugPrintln("[PSRAM] ❌ Not available.");
+  }
+  // Begin simulated loop. 
+  runReplayWithPrompt();
+}
+
 void DcsbiosProtocolReplay() {
     debugPrintln("\n[REPLAY PROTOCOL] 🔁 Playing stream from binary blob...");
 
-    const uint8_t* ptr = dcsbiosReplayData;
-    const uint8_t* end = dcsbiosReplayData + dcsbiosReplayLength;
+    if (!replayBuffer) return;
+
+    const uint8_t* ptr = replayBuffer;
+    const uint8_t* end = replayBuffer + dcsbiosReplayLength;
 
     while (ptr < end) {
 
@@ -252,6 +297,11 @@ void DcsbiosProtocolReplay() {
     debugPrintln("[REPLAY PROTOCOL] ✅ Complete.\n");
 }
 #endif
+
+uint16_t getLastKnownState(const char* label) {
+    CommandHistoryEntry* e = findCmdEntry(label);
+    return e ? e->lastValue : 0;
+}
 
 void DCSBIOS_keepAlive() {
     constexpr unsigned long DCS_KEEP_ALIVE_MS = DCS_KEEP_ALIVE_INTERVAL_MS;
@@ -320,37 +370,70 @@ CommandHistoryEntry* findCmdEntry(const char* label) {
     return nullptr;
 }
 
-// ----------------------------------------------------------------------------
-// Flush buffered selector-groups (call this each loop)
-// ----------------------------------------------------------------------------
 static void flushBufferedDcsCommands() {
-    unsigned long now     = millis();
+    unsigned long now = millis();
+    CommandHistoryEntry* groupLatest[MAX_GROUPS] = { nullptr };
 
     for (size_t i = 0; i < commandHistorySize; ++i) {
-        auto &e = commandHistory[i];
-        if (e.group == 0 || !e.hasPending || !cdcTxReady)
-            continue;
+        CommandHistoryEntry& e = commandHistory[i];
+        if (!e.hasPending || e.group == 0) continue;
 
         if (now - e.lastChangeTime >= SELECTOR_DWELL_MS) {
-            if (e.pendingValue != e.lastValue) {
+            uint16_t g = e.group;
 
-                // Host-ready check
-                if (!cdcTxReady) {
-                    debugPrintf("[DCS] ❌ Host NOT ready\n");
-                    return;
-                }
-
-                static char buf2[10];
-                snprintf(buf2, sizeof(buf2), "%u", e.pendingValue);
-                cdcTxReady = false;
-                DcsBios::sendDcsBiosMessage(e.label, buf2);
-                yield();
-                e.lastValue    = e.pendingValue;
-                e.lastSendTime = now;
-                debugPrintf("🛩️ [DCS] BUFFERED SEND: %s %s\n", e.label, buf2);
+            if (g >= MAX_GROUPS) {
+              debugPrintf("❌ FATAL: group ID %u exceeds MAX_GROUPS (%u). Halting flush.\n", g, MAX_GROUPS);
+              abort();  // Triggers clean panic for debugging
             }
+
+            if (!groupLatest[g] || e.lastChangeTime > groupLatest[g]->lastChangeTime) {
+                groupLatest[g] = &e;
+            }
+        }
+    }
+
+    // Step 2: For each group, flush winner and clear all others
+    for (uint16_t g = 1; g < MAX_GROUPS; ++g) {
+
+        CommandHistoryEntry* winner = groupLatest[g];
+
+        if (!winner) continue;    
+
+        if (!cdcTxReady) {
+            // debugPrintf("[DCS] ❌ CDC not ready, skipping group %u\n", g);
+            continue;
+        }  
+
+        // Clear all other selectors in the same group
+        for (size_t i = 0; i < commandHistorySize; ++i) {
+            CommandHistoryEntry& e = commandHistory[i];
+            if (e.group != g || &e == winner) continue;
+
+            if (e.lastValue != 0) {
+                char buf[10];
+                snprintf(buf, sizeof(buf), "0");
+                cdcTxReady = false;
+                DcsBios::sendDcsBiosMessage(e.label, buf);
+                e.lastValue = 0;
+                e.lastSendTime = now;
+                debugPrintf("🛩️ [DCS] CLEAR: %s = 0\n", e.label);
+            }
+
             e.hasPending = false;
         }
+
+        // Send the selected winner’s value
+        if (winner->pendingValue != winner->lastValue) {
+            char buf[10];
+            snprintf(buf, sizeof(buf), "%u", winner->pendingValue);
+            cdcTxReady = false;
+            DcsBios::sendDcsBiosMessage(winner->label, buf);
+            winner->lastValue    = winner->pendingValue;
+            winner->lastSendTime = now;
+            debugPrintf("🛩️ [DCS] SELECTED: %s = %u\n", winner->label, winner->pendingValue);
+        }
+
+        winner->hasPending = false;
     }
 }
 
@@ -391,6 +474,10 @@ bool applyThrottle(CommandHistoryEntry &e,
  */
 void sendDCSBIOSCommand(const char* label, uint16_t value, bool force /*=false*/) {
 
+    static char buf[10];
+    snprintf(buf, sizeof(buf), "%u", value);
+    debugPrintf("🛩️ [DCS] ATTEMPING SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
+
     // Always flush anything in the buffer before even attempting a send...
     tud_cdc_write_flush();
     yield();
@@ -426,12 +513,9 @@ void sendDCSBIOSCommand(const char* label, uint16_t value, bool force /*=false*/
     }
 
     // 5) Build & send message
-    static char buf[10];
-    snprintf(buf, sizeof(buf), "%u", value);
     cdcTxReady = false;
-
     if(DcsBios::sendDcsBiosMessage(label, buf)) {
-        debugPrintf("🛩️ [DCS] SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
+        debugPrintf("🛩️ [DCS] CONFIRMED SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
     }
     else {
         debugPrintf("❌ [DCS] COULD NOT SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
@@ -452,6 +536,14 @@ void DCSBIOS_init() {
 
     // Subscribe to each CDC event by ID
     setupCDCEvents();
+
+    // Check if PSRAM is available
+    if (initPSRAM()) {
+        debugPrintln("PSRAM is available on this device");
+    }
+    else {
+        debugPrintln("PSRAM is NOT available on this device");
+    }
 }
 
 void DCSBIOS_loop() {
@@ -460,7 +552,7 @@ void DCSBIOS_loop() {
     #endif
 
     DcsBios::loop();
-    
+   
     #if ENABLE_DCS_COMMAND_KEEPALIVE
     if (isModeSelectorDCS()) DCSBIOS_keepAlive();
     #endif

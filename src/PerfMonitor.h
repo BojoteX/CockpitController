@@ -12,6 +12,9 @@ void endProfiling  (const char* label);
 // Call each loop; prints one 10 s snapshot when ready
 void perfMonitorUpdate();
 
+// Check Heap
+void logHeapStatus(const char* label);
+
 #else
 
 // Stubs – zero overhead

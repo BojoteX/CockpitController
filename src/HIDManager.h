@@ -38,3 +38,4 @@ enum HIDAxis : uint8_t {
 };
 
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin, HIDAxis axis);
+void flushBufferedHidCommands();
