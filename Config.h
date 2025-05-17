@@ -1,44 +1,36 @@
+// Config.h
+
 #pragma once
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-//
-// When you make changes here make sure you CLEAN your prev compile or close your IDE and open again
-// If you don't and re-compile you wont see your options take effect.
-//
-////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 // Required for Descriptor handling
-#define USB_VID		        0xCAFE
-#define USB_PID		        0xD1F8
-#define USB_MANUFACTURER  "Bojote Inc"
-#define USB_PRODUCT_HID   "FA-18 Brain HID"
-#define USB_PRODUCT_CDC   "FA-18 Brain Serial"
-#define USB_PRODUCT       "FA-18 Brain Controller"
-#define USB_SERIAL        "SN-XFA18C-0003"
-#define USB_LANG_ID       0x0409  // English (US)
-#define USB_IF_CDC_NAME   USB_PRODUCT_CDC
-#define USB_IF_HID_NAME   USB_PRODUCT_HID
-#define USB_CFG_NAME      USB_PRODUCT
+#define USB_VID		                                0xCAFE
+#define USB_PID		                                0xC43E
+#define USB_MANUFACTURER                          "Bojote Inc"
+#define USB_PRODUCT_HID                           "FA-18 Brain Controller HID"
+#define USB_PRODUCT_CDC                           "FA-18 Brain Serial Interface"
+#define USB_PRODUCT                               "FA-18 Brain Controller"
+#define USB_SERIAL                                "SN-XFA18C-0003"
+#define USB_LANG_ID                               0x0409  // English (US)
+#define USB_IF_CDC_NAME                           USB_PRODUCT_CDC
+#define USB_IF_HID_NAME                           USB_PRODUCT_HID
+#define USB_CFG_NAME                              USB_PRODUCT
 
-// There is really no need for this, but if for you, ensuring cockpit sync is a top priority, use it. The design and architecture of this 
-// program is already fault-tolerant and throttles ALL sends to match DCS_UPDATE_RATE_HZ and avoid skipping commands. Like a PRO LEVEL
-// cockpit sim. 
-#define ENABLE_DCS_COMMAND_KEEPALIVE  0               // Explained above
-#define ENABLE_HID_KEEPALIVE          1               // Same, but for HID
 
-// Self explanatory, don't change if you don't know what you are doing
-#define DCS_UPDATE_RATE_HZ            30              // Change only if DCSBIOS ever changes its update freq (highly unlinkely)
-#define HID_REPORT_RATE_HZ           250              // Max 60Hz HID report rate to avoid spamming the CDC Endpoint / USB
-#define POLLING_RATE_HZ              250              // Panel and HID polling rate in Hz (125, 250, 500 Hz)
 #define VALUE_THROTTLE_MS             50              // How long (ms) to skip sending the same value again
 #define ANY_VALUE_THROTTLE_MS         33              // How long (ms) to skip sending different values (prevents spamming the CDC endpoint)
 #define SELECTOR_DWELL_MS            100              // Wait time (in ms) for stable selector value. Used by our dwell-time fitering logic
-#define HID_KEEP_ALIVE_INTERVAL_MS  1000              // Resend unchanged HID report after 1s
-#define DCS_KEEP_ALIVE_INTERVAL_MS  1000              // Re-send selector command every 1s if unchanged
-#define DCS_KEEPALIVE_POLL_INTERVAL POLLING_RATE_HZ   // How often to check for keep-alive conditions
+#define DCS_GROUP_MIN_INTERVAL_US (1000000UL / DCS_UPDATE_RATE_HZ) // Derived spacing constant
+#define HID_REPORT_MIN_INTERVAL_US  (1000000UL / HID_REPORT_RATE_HZ) // Derived spacing constant
 
-// Your CDC/Serial receive buffer
-#define SERIAL_RX_BUFFER_SIZE        1024              
+// Simulate a loopback DCS stream to check your panel is working and debug via Serial
+#define IS_REPLAY                                 0
+#define DEBUG_ENABLED                             0
+#define VERBOSE_MODE                              0
+#define DEBUG_USE_WIFI                            1
+#define VERBOSE_MODE_WIFI_ONLY                    1 
+#define DEBUG_PERFORMANCE                         1
+#define VERBOSE_PERFORMANCE_ONLY                  0
+#define PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS     60
 
 // Set to 1 to enable 400MHz PCA Bus FAST MODE   
 #define PCA_FAST_MODE         1   
@@ -50,71 +42,65 @@
 #define LOAD_PANEL_IR         1   // IR Cool Panel
 #define LOAD_PANEL_LOCKSHOOT  1   // Lock-Shoot Panel
 
-// Simulate a loopback DCS stream to check your panel is working and debug via Serial
-#define IS_REPLAY 0
+// #define CFG_TUSB_DEBUG       3
+// #define CFG_TUD_LOG_LEVEL    2
+// #define CONFIG_TINYUSB_CDC_RX_BUFSIZE             1024
+// #define CONFIG_TINYUSB_CDC_TX_BUFSIZE             1024
+// #define CFG_TUD_CDC_TX_BUFSIZE                    1024
+// #define CFG_TUD_CDC_RX_BUFSIZE                    1024
 
-// Add verbosity and lots of information on what your device is doing, dont use for production, performance heavy
-#define DEBUG_ENABLED 0
+// Your CDC/Serial receive buffer
+#define SERIAL_RX_BUFFER_SIZE                     1024              // in bytes             
+#define SERIAL_TX_TIMEOUT                         4                 // in ms 
+// #define HID_SENDREPORT_TIMEOUT                    0                 // in ms
+#define CDC_TIMEOUT_RX_TX                         100               // in ms
 
-// Enables always-on output regardless of DEBUG without the performance penalty of DEBUG_ENABLED
-#define VERBOSE_MODE 0
+#define DCS_UPDATE_RATE_HZ                        30                // DCSBIOS Loop [Task] update rate
+#define HID_REPORT_RATE_HZ                        20                // Use Max 60Hz HID report rate to avoid spamming the CDC Endpoint / USB
+#define POLLING_RATE_HZ                          250                // Panel polling rate in Hz (125, 250, 500 Hz)
+#define HID_RECOVERY_TIMEOUT_MS                  100                // After HID report sending failure, how long we wait in ms?
+#define HID_REPORT_MIN_INTERVAL_US               (1000000UL / HID_REPORT_RATE_HZ) // To ensure spacing between reports
 
-// Same as above but outputs to WiFi (very useful)
-#define VERBOSE_MODE_WIFI_ONLY 1
-
-// Enable WiFi debug (UDP output) when set to 1; disable with 0
-#define DEBUG_USE_WIFI 1 
-
-// Enable Profiling for specific blocks with beginProfiling / endProfiling (not for use in production)
-#define DEBUG_PERFORMANCE 1
-
-// This will output via UDP ONLY so you need to enable DEBUG_USE_WIFI.
-#define VERBOSE_PERFORMANCE_ONLY 0
-
-// You'll see a Menu when you start the device to test LEDS via console.  
-#define TEST_LEDS 0
+// temporary disable
+#define DCS_KEEP_ALIVE_MS                       1000                // Re-send selector command every second if unchanged
 
 // Does the device have a HID/DCS Mode selector? if so set HAS_HID_MODE_SELECTOR to 1 and PIN GPIO, otherwise HAS_HID_MODE_SELECTOR 0  
-#define HAS_HID_MODE_SELECTOR 1
-#define MODE_SWITCH_PIN 33 // Mode Selection Pin (DCS-BIOS/HID)
+#define HAS_HID_MODE_SELECTOR                     1
+#define MODE_SWITCH_PIN                           33                // Mode Selection Pin (DCS-BIOS/HID)
 
 // Global GPIO centralized PIN assignments
-#define SDA_PIN 8 // I2C PCA9555 Data Pin
-#define SCL_PIN 9 // I2C PCA9555 Clock Pin
-#define GLOBAL_CLK_PIN 37 // Clock Pin
-#define CA_DIO_PIN 36 // Caution Advisory DIO Pin
-#define LA_DIO_PIN 39 // Left Annunciator DIO Pin
-#define LA_CLK_PIN GLOBAL_CLK_PIN // Left Annunciator Clock Pin
-#define RA_DIO_PIN 40 // Right Annunciator DIO Pin
-#define RA_CLK_PIN GLOBAL_CLK_PIN // right Annunciator Clock Pin
-#define LOCKSHOOT_DIO_PIN 35 // Lock-Shoot Indicator DIO Pin
+#define SDA_PIN                                   8 // I2C PCA9555 Data Pin
+#define SCL_PIN                                   9 // I2C PCA9555 Clock Pin
+#define GLOBAL_CLK_PIN                           37 // Clock Pin
+#define CA_DIO_PIN                               36 // Caution Advisory DIO Pin
+#define LA_DIO_PIN                               39 // Left Annunciator DIO Pin
+#define LA_CLK_PIN                               GLOBAL_CLK_PIN // Left Annunciator Clock Pin
+#define RA_DIO_PIN                               40 // Right Annunciator DIO Pin
+#define RA_CLK_PIN                               GLOBAL_CLK_PIN // right Annunciator Clock Pin
+#define LOCKSHOOT_DIO_PIN                        35 // Lock-Shoot Indicator DIO Pin
 
-// Define the Built-in LED if not defined
-#ifndef LED_BUILTIN
-  #define LED_BUILTIN 2
-#endif
+#define MAX_TRACKED_RECORDS 512   // default safety cap
+#define MAX_GROUPS 128            // default safety cap
 
-#define MAX_TRACKED_RECORDS 512  // default safety cap
-#define MAX_GROUPS 128  // default safety cap
-    
-// How frequent you want to see the performance snapshot + profiling blocks? requires DEBUG_PERFORMANCE enabled
-#define PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS 30
+// Define the Built-in LED if compiling with a board that does not define it
+// #ifndef LED_BUILTIN
+// #define LED_BUILTIN 2 // Default LED pin
+// #endif
 
 #if DEBUG_USE_WIFI
-#include <cstdint>
 #include <IPAddress.h>
-
 // Wi-Fi network credentials
 static const char* WIFI_SSID = "Metro5600";
 static const char* WIFI_PASS = "4458e8c3c2";
-
-// Run listener.py script and enter the IP address shown there (Port should not change) 
-static const IPAddress DEBUG_REMOTE_IP(192, 168, 7, 163);
+// Remote IP + Port - Run listener.py script and enter the IP address shown there (Port should not change) 
+static const IPAddress DEBUG_REMOTE_IP(192, 168, 7, 255); // Broadcast address so no need to direct UDP to a specific IP
 static const uint16_t DEBUG_REMOTE_PORT = 4210;
 #endif
 
+/*
 // Fix for latest Adafruit TinyUSB with 3.2.0 Core. We are NOT using Adafruit's Library, this is just for testing
 extern "C" bool __atomic_test_and_set(volatile void* ptr, int memorder) __attribute__((weak));
 bool __atomic_test_and_set(volatile void* ptr, int memorder) {
   return false; // pretend the lock was not already set
 }
+*/

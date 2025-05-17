@@ -1,6 +1,8 @@
+// MasterARMPanel.cpp
+
 #include "src/Globals.h"
-#include "src/MasterARMPanel.h"
 #include "src/HIDManager.h"
+#include "src/MasterARMPanel.h"
 
 // Cache local del estado
 static byte prevMasterPort0 = 0xFF;
@@ -30,7 +32,7 @@ void MasterARM_init() {
     HIDManager_setNamedButton("MASTER_MODE_AA",     true, !bitRead(port0, MASTER_ARM_AA));
     HIDManager_setNamedButton("FIRE_EXT_BTN",       true, !bitRead(port0, MASTER_ARM_DISCH));
 
-    HIDManager_commitDeferredReport("Master ARM Panel");
+    // HIDManager_commitDeferredReport("Master ARM Panel");
 
     debugPrintf("✅ Initialized Master ARM Panel\n",MASTERARM_PCA_ADDR);
   } else {

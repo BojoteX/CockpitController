@@ -1,4 +1,8 @@
-#include "src/Globals.h"   
+#include "src/Globals.h"
+
+#if DEBUG_USE_WIFI
+#include "src/WiFiDebug.h"
+#endif
 
 #if DEBUG_ENABLED
 bool DEBUG           = true;
@@ -24,20 +28,25 @@ void debugSetOutput(bool toSerial, bool toUDP) {
 
 void debugPrint(const char* msg) {
     if (debugToSerial) serialDebugPrint(msg);
+    #if DEBUG_USE_WIFI
     if (debugToUDP)    wifiDebugPrint(msg);
+    #endif
 }
 
 void debugPrintln(const char* msg) {
     if (debugToSerial) serialDebugPrintln(msg);
+    #if DEBUG_USE_WIFI
     if (debugToUDP)    wifiDebugPrintln(msg);
+    #endif
 }
 
 void debugPrintf(const char* format, ...) {
-    char buf[256];
+    char buf[256];  // Fixed-size stack buffer (safe)
     va_list args;
     va_start(args, format);
     vsnprintf(buf, sizeof(buf), format, args);
     va_end(args);
+    buf[sizeof(buf) - 1] = '\0';  // Force null-termination
     debugPrint(buf);
 }
 
@@ -47,6 +56,7 @@ void serialDebugPrintf(const char* format, ...) {
     va_start(args, format);
     vsnprintf(buf, sizeof(buf), format, args);
     va_end(args);
+    buf[sizeof(buf) - 1] = '\0';
     serialDebugPrint(buf);
 }
 

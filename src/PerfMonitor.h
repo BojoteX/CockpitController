@@ -1,26 +1,64 @@
+// PerfMonitor.h
+
 #pragma once
 
 #if DEBUG_PERFORMANCE
 
-// Initialize the performance monitor (call in setup)
+const char* const perfLabelNames[] = {
+    "[LED] GPIO",
+    "[LED] PCA9555",
+    "[LED] TM1637",
+    "[LED] GN1640",
+    "[LED] WS2812",
+    "[LED] Unknown Device",
+    "[REPLAY] Main Loop",
+    "[TASK] HID Reports",
+    "[TASK] DcsBios Loop",
+    "Main Loop"
+};
+enum PerfLabel : uint8_t {
+    PERF_LED_GPIO,
+    PERF_LED_PCA9555,
+    PERF_LED_TM1637,
+    PERF_LED_GN1640,
+    PERF_LED_WS2812,
+    PERF_LED_UNKNOWN,
+    PERF_REPLAY,
+    PERF_HIDREPORTS,
+    PERF_DCSBIOS,
+    PERF_MAIN_LOOP,
+    PERF_LABEL_COUNT,  // 🔒 Sentinel for size enforcement
+};
+constexpr bool perfIncludedInLoad[PERF_LABEL_COUNT] = {
+    false,  	// PERF_LED_GPIO
+    false,  	// PERF_LED_PCA9555
+    false,  	// PERF_LED_TM1637
+    false,  	// PERF_LED_GN1640
+    false,  	// PERF_LED_WS2812
+    false,  	// PERF_LED_UNKNOWN
+    false,  	// PERF_REPLAY
+    false,  	// PERF_HIDREPORTS
+    false,  	// PERF_DCSBIOS
+    true   	// PERF_MAIN_LOOP
+};
+extern const char* const perfLabelNames[];
+
+static_assert(PERF_LABEL_COUNT == sizeof(perfLabelNames) / sizeof(perfLabelNames[0]), "Mismatch: perfLabelNames[] size");
+static_assert(PERF_LABEL_COUNT == sizeof(perfIncludedInLoad) / sizeof(perfIncludedInLoad[0]), "Mismatch: perfIncludedInLoad[] size");
+
+struct ProfAccum {
+    uint64_t sumUs;
+    uint32_t cnt;
+    uint32_t startUs;
+};
+extern ProfAccum perfTable[PERF_LABEL_COUNT];
+
 void initPerfMonitor();
-
-// Profile a named section
-void beginProfiling(const char* label);
-void endProfiling  (const char* label);
-
-// Call each loop; prints one 10 s snapshot when ready
+void beginProfiling(PerfLabel label);
+void endProfiling(PerfLabel label);
 void perfMonitorUpdate();
 
-// Check Heap
-void logHeapStatus(const char* label);
-
-#else
-
-// Stubs – zero overhead
-inline void initPerfMonitor()                 {}
-inline void beginProfiling(const char*)       {}
-inline void endProfiling  (const char*)       {}
-inline void perfMonitorUpdate()               {}
+// static_assert(PERF_LABEL_COUNT == sizeof(perfLabelNames) / sizeof(perfLabelNames[0]), "perfLabelNames size mismatch");
+// static_assert(PERF_LABEL_COUNT == sizeof(perfIncludedInLoad) / sizeof(perfIncludedInLoad[0]), "perfIncludedInLoad size mismatch");
 
 #endif // DEBUG_PERFORMANCE

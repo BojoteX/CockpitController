@@ -1,9 +1,10 @@
-// LEFTAnnunciator.cpp
+// LeftAnnunciator.cpp
 // Implementation for LEFT annunciator button panel integration
 
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
+#include "src/LeftAnnunciator.h"
 
 // Initialization routine for LEFT annunciator buttons
 void LeftAnnunciator_init() {
@@ -29,7 +30,7 @@ void LeftAnnunciator_init() {
     HIDManager_setNamedButton("MASTER_CAUTION_RESET_SW", true, true);
     }
 
-    HIDManager_commitDeferredReport("Left Annunciator");
+    // HIDManager_commitDeferredReport("Left Annunciator");
 
   debugPrintln("✅ LEFT Annunciator initialized for buttons");
 }

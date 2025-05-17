@@ -165,6 +165,9 @@ void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
 void PCA9555_write(uint8_t addr, uint8_t port, uint8_t bit, bool state) {
     uint8_t data0, data1;
 
+    // debugPrintf("[PCA] ❌ Write / LED skipped. %s (0x%02X) FORCED NOT PRESENT FOR DEBUG\n", getPanelName(addr), addr);
+    // return;
+
     if (!panelExists(addr)) {
         debugPrintf("[PCA] ❌ Write / LED skipped. %s (0x%02X) not present\n", getPanelName(addr), addr);
 	return;

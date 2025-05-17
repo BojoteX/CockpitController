@@ -1,21 +1,23 @@
+// DCSBIOSBridge.cpp
+
 #include "src/Globals.h"
 #include "src/DCSBIOSBridge.h"
 #include "src/LABELS/DCSBIOSBridgeData.h"
 #include "src/LEDControl.h"
 #include "src/HIDManager.h"
-#include "src/PsramConfig.h" // We init PSRAM when available only
-#if DEBUG_PERFORMANCE
-#include "src/PerfMonitor.h"
-#endif
-
-#if DEBUG_USE_WIFI
-#include "src/WiFiDebug.h"
-#endif
 
 #define DCSBIOS_DISABLE_SERVO
 #define DCSBIOS_ESP32_CDC_SERIAL
 #include "lib/DCS-BIOS/src/DcsBios.h"
 #include "lib/DCS-BIOS/src/internal/Protocol.cpp"
+
+#if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
+// Get the USBCDC class (we don't need unless we DISABLE CDC ON BOOT)
+USBCDC USBSerial;
+#endif
+
+// Same group send spacing enforcement
+static uint32_t lastGroupSendUs[MAX_GROUPS] = {0};
 
 // Command History tracking
 static_assert(commandHistorySize <= MAX_TRACKED_RECORDS, "Not enough space for tracked entries. Increase MAX_TRACKED_RECORDS in Config.h");
@@ -136,13 +138,13 @@ void onAircraftName(char* str) {
         debugPrintf("%s", buf);
 
         // This ensures your cockpit and sim always sync on mission start
-        initializePanels();
+        // initializePanels();
 
         if(isModeSelectorDCS()) {
-            flushBufferedDcsCommands();
+            // flushBufferedDcsCommands();
         }
         else {
-            flushBufferedHidCommands();
+            // flushBufferedHidCommands();
         }
 
     } else {
@@ -263,7 +265,7 @@ void DcsbiosProtocolReplay() {
     while (ptr < end) {
 
         #if DEBUG_PERFORMANCE
-            beginProfiling("Replay Loop");
+            beginProfiling(PERF_REPLAY);
         #endif
 
         float frameDelay;
@@ -284,7 +286,7 @@ void DcsbiosProtocolReplay() {
         DcsBios::loop();                // catch final updates
 
         #if DEBUG_PERFORMANCE
-            endProfiling("Replay Loop");
+            endProfiling(PERF_REPLAY);
         #endif
 
         #if DEBUG_PERFORMANCE
@@ -301,53 +303,6 @@ void DcsbiosProtocolReplay() {
 uint16_t getLastKnownState(const char* label) {
     CommandHistoryEntry* e = findCmdEntry(label);
     return e ? e->lastValue : 0;
-}
-
-void DCSBIOS_keepAlive() {
-    constexpr unsigned long DCS_KEEP_ALIVE_MS = DCS_KEEP_ALIVE_INTERVAL_MS;
-
-    static unsigned long lastPoll = 0;
-
-    unsigned long now = millis();
-    if (now - lastPoll < DCS_KEEPALIVE_POLL_INTERVAL) return;
-    lastPoll = now;
-
-    for (size_t i = 0; i < commandHistorySize; ++i) {
-        CommandHistoryEntry& entry = commandHistory[i];
-
-        if (!entry.isSelector) continue;
-
-        if (now - entry.lastSendTime >= DCS_KEEP_ALIVE_MS) {
-            sendDCSBIOSCommand(entry.label, entry.lastValue, true);
-            // debugPrintf("🔁 [DCS COMMAND KEEP-ALIVE] %s = %u\n", entry.label, entry.lastValue);
-        }
-    }
-}
-
-// Callback to lets us know FIFO drained
-static volatile bool cdcTxReady = true;
-static void cdcTxHandler(void* arg,
-                         esp_event_base_t base,
-                         int32_t id,
-                         void* event_data)
-{
-    cdcTxReady = true;
-}
-
-// Let us know when there is an overflow event
-static void cdcRxOvfHandler(void* arg,
-                            esp_event_base_t base,
-                            int32_t id,
-                            void* event_data)
-{
-    auto* ev = (arduino_usb_cdc_event_data_t*)event_data;
-    debugPrintf("[CDC RX_OVERFLOW] ❌ dropped=%u\n",
-                (unsigned)ev->rx_overflow.dropped_bytes);
-}
-
-void setupCDCEvents() {
-  Serial.onEvent(ARDUINO_USB_CDC_TX_EVENT,           cdcTxHandler);
-  Serial.onEvent(ARDUINO_USB_CDC_RX_OVERFLOW_EVENT,  cdcRxOvfHandler);
 }
 
 // Accessors into our TU static
@@ -372,8 +327,11 @@ CommandHistoryEntry* findCmdEntry(const char* label) {
 
 static void flushBufferedDcsCommands() {
     unsigned long now = millis();
+    uint32_t nowUs = micros();
+
     CommandHistoryEntry* groupLatest[MAX_GROUPS] = { nullptr };
 
+    // Step 1: Find winner per group
     for (size_t i = 0; i < commandHistorySize; ++i) {
         CommandHistoryEntry& e = commandHistory[i];
         if (!e.hasPending || e.group == 0) continue;
@@ -382,8 +340,8 @@ static void flushBufferedDcsCommands() {
             uint16_t g = e.group;
 
             if (g >= MAX_GROUPS) {
-              debugPrintf("❌ FATAL: group ID %u exceeds MAX_GROUPS (%u). Halting flush.\n", g, MAX_GROUPS);
-              abort();  // Triggers clean panic for debugging
+                debugPrintf("❌ FATAL: group ID %u exceeds MAX_GROUPS (%u). Halting flush.\n", g, MAX_GROUPS);
+                abort();  // Fail safe
             }
 
             if (!groupLatest[g] || e.lastChangeTime > groupLatest[g]->lastChangeTime) {
@@ -392,50 +350,54 @@ static void flushBufferedDcsCommands() {
         }
     }
 
-    // Step 2: For each group, flush winner and clear all others
+    // Step 2: For each group, clear others and send winner (only if spacing OK)
     for (uint16_t g = 1; g < MAX_GROUPS; ++g) {
-
         CommandHistoryEntry* winner = groupLatest[g];
+        if (!winner) continue;
 
-        if (!winner) continue;    
-
-        if (!cdcTxReady) {
-            // debugPrintf("[DCS] ❌ CDC not ready, skipping group %u\n", g);
+        // Enforce spacing for this group
+        nowUs = micros();
+        if ((nowUs - lastGroupSendUs[g]) < DCS_GROUP_MIN_INTERVAL_US) {
+            // debugPrintf("⚠️ [DCS] Group %u skipped: spacing\n", g);
             continue;
         }  
 
-        // Clear all other selectors in the same group
+        // Clear other selectors in group
         for (size_t i = 0; i < commandHistorySize; ++i) {
             CommandHistoryEntry& e = commandHistory[i];
             if (e.group != g || &e == winner) continue;
 
             if (e.lastValue != 0) {
                 char buf[10];
-                snprintf(buf, sizeof(buf), "0");
-                cdcTxReady = false;
-                DcsBios::sendDcsBiosMessage(e.label, buf);
+                snprintf(buf, sizeof(buf), "0");              
+
+                // Send Command
+                sendCommand(e.label,buf);
+
                 e.lastValue = 0;
                 e.lastSendTime = now;
-                debugPrintf("🛩️ [DCS] CLEAR: %s = 0\n", e.label);
             }
 
             e.hasPending = false;
         }
 
-        // Send the selected winner’s value
+        // Send selected value
         if (winner->pendingValue != winner->lastValue) {
             char buf[10];
             snprintf(buf, sizeof(buf), "%u", winner->pendingValue);
-            cdcTxReady = false;
-            DcsBios::sendDcsBiosMessage(winner->label, buf);
+
+            // Send command
+            sendCommand(winner->label,buf);
+
             winner->lastValue    = winner->pendingValue;
             winner->lastSendTime = now;
-            debugPrintf("🛩️ [DCS] SELECTED: %s = %u\n", winner->label, winner->pendingValue);
         }
 
         winner->hasPending = false;
+        lastGroupSendUs[g] = nowUs;
     }
 }
+
 
 // ----------------------------------------------------------------------------
 // Send command to DCS-BIOS sendDcsBiosCommand 
@@ -469,18 +431,142 @@ bool applyThrottle(CommandHistoryEntry &e,
     return true;
 }
 
-/**
- * sendDCSBIOSCommand: shared DCS command sender, with selector buffering & throttle.
- */
+static volatile bool cdcTxReady = true;
+static volatile bool cdcRxReady = true;
+
+static void cdcConnectedHandler(void* arg, esp_event_base_t base, int32_t id, void* event_data) {
+    debugPrintln("🔌 CDC Connected (DTR asserted)");
+}
+
+static void cdcDisconnectedHandler(void* arg, esp_event_base_t base, int32_t id, void* event_data) {
+    debugPrintln("❌ CDC Disconnected (DTR deasserted)");
+}
+
+static void cdcLineStateHandler(void* arg, esp_event_base_t base, int32_t id, void* event_data) {
+    auto* ev = (arduino_usb_cdc_event_data_t*)event_data;
+    bool dtr = ev->line_state.dtr;
+    bool rts = ev->line_state.rts;
+
+    debugPrintf("📡 CDC Line State: DTR=%s, RTS=%s\n",
+                dtr ? "ON" : "OFF",
+                rts ? "ON" : "OFF");
+}
+
+static void cdcLineCodingHandler(void* arg, esp_event_base_t base, int32_t id, void* event_data) {
+    auto* ev = (arduino_usb_cdc_event_data_t*)event_data;
+
+    debugPrintf("🔧 CDC Line Coding: Baud=%u, StopBits=%u, Parity=%u, DataBits=%u\n",
+                ev->line_coding.bit_rate,
+                ev->line_coding.stop_bits,
+                ev->line_coding.parity,
+                ev->line_coding.data_bits);
+}
+
+
+static void cdcRxHandler(void* arg,
+                         esp_event_base_t base,
+                         int32_t id,
+                         void* event_data)
+{
+    cdcRxReady = true;
+}
+
+static void cdcTxHandler(void* arg,
+                         esp_event_base_t base,
+                         int32_t id,
+                         void* event_data)
+{
+    cdcTxReady = true;
+}
+
+// Let us know when there is an overflow event
+static void cdcRxOvfHandler(void* arg,
+                            esp_event_base_t base,
+                            int32_t id,
+                            void* event_data)
+{
+    auto* ev = (arduino_usb_cdc_event_data_t*)event_data;
+    debugPrintf("[CDC RX_OVERFLOW] ❌ dropped=%u\n", (unsigned)ev->rx_overflow.dropped_bytes);
+}
+
+void setupCDCEvents() {
+    Serial.onEvent(ARDUINO_USB_CDC_CONNECTED_EVENT, cdcConnectedHandler);
+    Serial.onEvent(ARDUINO_USB_CDC_DISCONNECTED_EVENT, cdcDisconnectedHandler);
+    Serial.onEvent(ARDUINO_USB_CDC_LINE_STATE_EVENT, cdcLineStateHandler);
+    Serial.onEvent(ARDUINO_USB_CDC_LINE_CODING_EVENT, cdcLineCodingHandler);       
+    Serial.onEvent(ARDUINO_USB_CDC_RX_EVENT, cdcRxHandler);
+    Serial.onEvent(ARDUINO_USB_CDC_TX_EVENT, cdcTxHandler);
+    Serial.onEvent(ARDUINO_USB_CDC_RX_OVERFLOW_EVENT, cdcRxOvfHandler);    
+}
+
+bool cdcEnsureTxReady(uint32_t timeoutMs) {
+    unsigned long start = millis();
+    while (!cdcTxReady) {
+        yield();
+        if (millis() - start > timeoutMs) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool cdcEnsureRxReady(uint32_t timeoutMs) {
+    unsigned long start = millis();
+    while (!cdcRxReady) {
+        yield();
+        if (millis() - start > timeoutMs) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void sendCommand(const char* msg, const char* arg) {
+    if (!cdcEnsureRxReady()) {
+        return;
+    }
+
+    if (!cdcEnsureTxReady()) {
+        return;
+    }
+
+    cdcTxReady = false;
+    if (DcsBios::sendDcsBiosMessage(msg, arg)) {
+        debugPrintf("🛩️ [DCS] %s %s\n", msg, arg);
+    } else {
+        debugPrintf("❌ [DCS] Failed to send %s %s\n", msg, arg);
+        return;
+    }
+
+/*
+    unsigned long start = millis();
+    while (!cdcTxReady) {
+        yield();
+        if (millis() - start > CDC_TIMEOUT_RX_TX) {
+            debugPrintf("❌ [DCS] TX confirm timeout for %s %s\n", msg, arg);
+            return;
+        }
+    }
+*/
+
+}
+
+void DCSBIOS_keepAlive() {
+    static unsigned long lastHeartbeat = 0;
+    unsigned long now = millis();
+
+    if (now - lastHeartbeat >= DCS_KEEP_ALIVE_MS) {
+        lastHeartbeat = now;
+        sendCommand("PING", "0");
+    }
+}
+
+// sendDCSBIOSCommand: shared DCS command sender, with selector buffering & throttle.
 void sendDCSBIOSCommand(const char* label, uint16_t value, bool force /*=false*/) {
 
     static char buf[10];
     snprintf(buf, sizeof(buf), "%u", value);
-    debugPrintf("🛩️ [DCS] ATTEMPING SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
-
-    // Always flush anything in the buffer before even attempting a send...
-    tud_cdc_write_flush();
-    yield();
+    // debugPrintf("🛩️ [DCS] ATTEMPING SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
     
     // Lookup history entry
     auto* e = findCmdEntry(label);
@@ -490,14 +576,8 @@ void sendDCSBIOSCommand(const char* label, uint16_t value, bool force /*=false*/
     }
     unsigned long now = millis();
 
-    // 2) Host-ready check
-    if (!cdcTxReady) {
-        debugPrintf("[DCS] ❌ Host NOT ready\n");
-        return;
-    }
-
     #if defined(SELECTOR_DWELL_MS) && (SELECTOR_DWELL_MS > 0)
-    // 3) Selector-group buffering (unchanged)
+    // Selector-group buffering (unchanged)
     if (!force && e->group > 0) {
         e->pendingValue   = value;
         e->lastChangeTime = now;
@@ -507,65 +587,59 @@ void sendDCSBIOSCommand(const char* label, uint16_t value, bool force /*=false*/
     }
     #endif
 
-    // 4) Apply unified throttle for non-zero
+    // Apply unified throttle for non-zero
     if (!applyThrottle(*e, label, value, force)) {
         return;
-    }
+    }          
 
-    // 5) Build & send message
-    cdcTxReady = false;
-    if(DcsBios::sendDcsBiosMessage(label, buf)) {
-        debugPrintf("🛩️ [DCS] CONFIRMED SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
-    }
-    else {
-        debugPrintf("❌ [DCS] COULD NOT SEND: %s = %u%s\n", label, value, force ? " (forced)" : "");
-    }
+    // Send Command
+    sendCommand(label,buf);
 
     // 6) Update history
     e->lastValue    = value;
     e->lastSendTime = now;
 }
 
-void DCSBIOS_init() {
-
-    #if DEBUG_PERFORMANCE
-    initPerfMonitor(); // this is used for profiling, see debugPrint for details
-    #endif
-
-    DcsBios::setup();
-
-    // Subscribe to each CDC event by ID
-    setupCDCEvents();
-
-    // Check if PSRAM is available
-    if (initPSRAM()) {
-        debugPrintln("PSRAM is available on this device");
-    }
-    else {
-        debugPrintln("PSRAM is NOT available on this device");
+void DcsBiosTask(void* param) {
+    const TickType_t interval = pdMS_TO_TICKS(1000 / DCS_UPDATE_RATE_HZ);  // e.g., 30Hz
+    while (true) {
+        #if DEBUG_PERFORMANCE
+        beginProfiling(PERF_DCSBIOS);
+        #endif
+        cdcRxReady = false;
+        DcsBios::loop();    
+        #if DEBUG_PERFORMANCE      
+        endProfiling(PERF_DCSBIOS);
+        #endif
+        vTaskDelay(interval);
     }
 }
 
-void DCSBIOS_loop() {
-    #if DEBUG_PERFORMANCE
-    beginProfiling("DCS-BIOS Loop");
-    #endif
+void DCSBIOSBridge_setup() {
 
-    DcsBios::loop();
-   
-    #if ENABLE_DCS_COMMAND_KEEPALIVE
-    if (isModeSelectorDCS()) DCSBIOS_keepAlive();
-    #endif
+    // Descriptors for our device
+    USB.VID(USB_VID);
+    USB.PID(USB_PID);
 
-    #if DEBUG_PERFORMANCE
-    endProfiling("DCS-BIOS Loop");
-    #endif
+    // Serial for DCS-BIOS
+    setupCDCEvents(); // Load CDC Events
+    Serial.setRxBufferSize(SERIAL_RX_BUFFER_SIZE);
+    Serial.setTxTimeoutMs(SERIAL_TX_TIMEOUT);  // To avoid CDC getting stuck when SOCAT starts acting up
+    // Serial.enableReboot(false); // Should be set to false for PRODUCTION, true for development
+    Serial.setDebugOutput(false);
+    Serial.begin(0);
+
+    // Initialize DCSBIOS 
+    DcsBios::setup();    
+}
+
+void DCSBIOSBridge_loop() {
+
+    // Optional
+    if (isModeSelectorDCS()) DCSBIOS_keepAlive();  // Still called only when in DCS mode   
 
     #if defined(SELECTOR_DWELL_MS) && (SELECTOR_DWELL_MS > 0)
     if (isModeSelectorDCS()) flushBufferedDcsCommands();
-    #endif
+    #endif    
 
-    #if DEBUG_PERFORMANCE
-    perfMonitorUpdate();
-    #endif
 }

@@ -141,6 +141,9 @@ void tm1637_stop(TM1637Device &dev) {
 }
 
 bool tm1637_writeByte(TM1637Device &dev, uint8_t b) {
+
+
+
     pinMode(dev.dioPin, OUTPUT);
     for (uint8_t i = 0; i < 8; ++i) {
         digitalWrite(dev.clkPin, LOW);
@@ -187,7 +190,17 @@ void tm1637_init(TM1637Device &dev, uint8_t clkPin, uint8_t dioPin) {
     tm1637_updateDisplay(dev);
 }
 
+const char* getTM1637Label(const TM1637Device* dev) {
+    if (dev == &RA_Device) return "RA";
+    if (dev == &LA_Device) return "LA";
+    return "UNKNOWN";
+}
+
 void tm1637_displaySingleLED(TM1637Device &dev, uint8_t grid, uint8_t segment, bool state) {
+
+    // debugPrintf("[TM1637] ❌ Write / LED skipped. Device: %s FORCED NOT PRESENT FOR DEBUG\n", getTM1637Label(&dev));
+    // return;
+
     if (grid < 6 && segment < 8) {
         if (state)
             dev.ledData[grid] |= (1 << segment);

@@ -1,10 +1,10 @@
+// HIDManager.h
+
 #pragma once
 
-#include <cstdint>
-
-// ───── Initialization / Main Loop ─────
-void HIDManager_begin();
+void HIDManager_setup();
 void HIDManager_loop();
+void HIDSenderTask(void* param);
 
 // ───── Axis Input ─────
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin);
@@ -39,3 +39,4 @@ enum HIDAxis : uint8_t {
 
 void HIDManager_moveAxis(const char* dcsIdentifier, uint8_t pin, HIDAxis axis);
 void flushBufferedHidCommands();
+void HIDManager_dispatchReport(bool force = false);

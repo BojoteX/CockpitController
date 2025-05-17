@@ -8,11 +8,10 @@
 // Shared across all panels GPIO 8 (SDA) and GPIO 9 (SCL)
 
 // ECMPanel.cpp
-// Author: Bojote
 
 #include "src/Globals.h"
-#include "src/ECMPanel.h"
 #include "src/HIDManager.h"
+#include "src/ECMPanel.h"
 
 // Track previous PCA9555 state for ECM panel only
 static byte prevECMPort0 = 0xFF;
@@ -68,7 +67,7 @@ void ECM_init() {
       HIDManager_setNamedButton("ECM_MODE_SW_XMIT", true);
 
     // Commit all deferred button reports at once
-    HIDManager_commitDeferredReport("ECM Panel");
+    // HIDManager_commitDeferredReport("ECM Panel");
 
     debugPrintf("✅ Initialized ECM Panel\n",ECM_PCA_ADDR);
   } else {

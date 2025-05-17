@@ -1,17 +1,11 @@
 #include "src/Globals.h"
 
 #if DEBUG_USE_WIFI
-#include "src/PsramConfig.h"
 #include "src/WiFiDebug.h"
-
-static char dbgBuf[256] PS_ATTR;
-static WiFiClient debugClient;
-
-// Optional reconnect cooldown
-static unsigned long lastConnectAttempt = 0;
-static const unsigned long CONNECT_RETRY_INTERVAL_MS = 5000;
+static WiFiUDP udp;
 
 void scanNetworks() {
+    // Make sure Wi-Fi is in station mode (needed for scan)
     WiFi.mode(WIFI_STA);
     Serial.println("\nScanning for Wi-Fi networks…");
 
@@ -20,82 +14,60 @@ void scanNetworks() {
         Serial.println("  ► No networks found");
     } else {
         for (int i = 0; i < n; i++) {
-            // String ssid = WiFi.SSID(i);
-            char ssidBuf[33];
+            char ssidBuf[33];  // Max SSID length is 32 + null
             WiFi.SSID(i).toCharArray(ssidBuf, sizeof(ssidBuf));
 
-            int    rssi = WiFi.RSSI(i);
-            bool   sec  = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+            int  rssi = WiFi.RSSI(i);
+            bool sec  = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+
             Serial.printf("  %2d: %-32s %4ddBm  %s\n",
-                        i + 1,
-                        ssidBuf,
-                        rssi,
-                        sec ? "🔒 Secured" : "🔓 Open");
-            delay(5);
+                          i + 1,
+                          ssidBuf,
+                          rssi,
+                          sec ? "🔒 Secured" : "🔓 Open");
+            delay(5);  // let background tasks breathe
         }
     }
-    WiFi.scanDelete();
+
+    WiFi.scanDelete();  // free internal scan memory
     Serial.println("");
 }
 
-void wifiDebugInit(uint16_t) {
+
+void wifiDebugInit(uint16_t localPort) {
     if (WiFi.status() != WL_CONNECTED) return;
-    debugClient.stop();  // Ensure fresh socket
-    debugClient.connect(DEBUG_REMOTE_IP, DEBUG_REMOTE_PORT);
-    lastConnectAttempt = millis();
+    udp.begin(localPort);
 }
 
 void wifiDebugPrint(const char* msg) {
     if (WiFi.status() != WL_CONNECTED) return;
-
-    if (!debugClient.connected()) {
-        unsigned long now = millis();
-        if (now - lastConnectAttempt >= CONNECT_RETRY_INTERVAL_MS) {
-            debugClient.stop();
-            debugClient.connect(DEBUG_REMOTE_IP, DEBUG_REMOTE_PORT);
-            lastConnectAttempt = now;
-        }
-        return;
-    }
-
-    debugClient.write((const uint8_t*)msg, strlen(msg));
-}
-
-void wifiDebugPrintln(const char* msg) {
-    if (WiFi.status() != WL_CONNECTED) return;
-    if (!debugClient.connected()) return;
-
-    static char lineBuf[300] PS_ATTR;  // 256 + CRLF + margin
-    size_t len = strlen(msg);
-    if (len > sizeof(lineBuf) - 3) len = sizeof(lineBuf) - 3;
-
-    memcpy(lineBuf, msg, len);
-    lineBuf[len++] = '\r';
-    lineBuf[len++] = '\n';
-
-    debugClient.write((const uint8_t*)lineBuf, len);
+    udp.beginPacket(DEBUG_REMOTE_IP, DEBUG_REMOTE_PORT);
+    udp.write((const uint8_t*)msg, strlen(msg));
+    udp.endPacket();
 }
 
 void wifiDebugPrintf(const char* format, ...) {
     if (WiFi.status() != WL_CONNECTED) return;
-    if (!debugClient.connected()) return;
-
-    static char dbgBuf[300] PS_ATTR;
+    char buf[256];
     va_list args;
     va_start(args, format);
-    int len = vsnprintf(dbgBuf, sizeof(dbgBuf) - 3, format, args);  // leave room for CRLF
+    vsnprintf(buf, sizeof(buf), format, args);
     va_end(args);
+    udp.beginPacket(DEBUG_REMOTE_IP, DEBUG_REMOTE_PORT);
+    udp.write((const uint8_t*)buf, strlen(buf));
+    udp.endPacket();
+}
 
-    if (len < 0) return;
-    if ((size_t)len > sizeof(dbgBuf) - 3) len = sizeof(dbgBuf) - 3;
-
-    dbgBuf[len++] = '\r';
-    dbgBuf[len++] = '\n';
-
-    debugClient.write((const uint8_t*)dbgBuf, len);
+void wifiDebugPrintln(const char* msg) {
+    if (WiFi.status() != WL_CONNECTED) return;
+    udp.beginPacket(DEBUG_REMOTE_IP, DEBUG_REMOTE_PORT);
+    udp.write((const uint8_t*)msg, strlen(msg));
+    udp.write((const uint8_t*)"\r\n", 2);
+    udp.endPacket();
 }
 
 void wifi_setup() {
+    // scanNetworks();
     WiFi.setTxPower(WIFI_POWER_MINUS_1dBm); 
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -104,8 +76,13 @@ void wifi_setup() {
         delay(500);
         Serial.print(".");
     }
-    Serial.println((" WiFi connected: " + WiFi.localIP().toString()).c_str());
-    wifiDebugPrintln((" WiFi connected: " + WiFi.localIP().toString()).c_str());
+
+    IPAddress ip = WiFi.localIP();
+    char ipbuf[24];
+    snprintf(ipbuf, sizeof(ipbuf), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+    Serial.print(" WiFi connected: ");
+    Serial.println(ipbuf);
     wifiDebugInit();
+    wifiDebugPrintf("WiFi connected: %s\n", ipbuf);
 }
 #endif

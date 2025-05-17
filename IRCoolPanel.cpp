@@ -11,13 +11,11 @@
 // Shared across all panels GPIO 8 (SDA) and GPIO 9 (SCL)
 
 // IRCoolPanel.cpp
-// TEKCreations F/A-18C IR COOL Panel Firmware Logic
-// Author: Bojote
 
 #include "src/Globals.h"
-#include "src/IRCoolPanel.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
+#include "src/IRCoolPanel.h"
 
 // Previous state cache for change detection
 static byte prevIRCPort0 = 0xFF;
@@ -69,7 +67,7 @@ void IRCool_init() {
       HIDManager_setNamedButton("IR_COOL_SW_NORM", true);
 
     // Send deferred HID report
-    HIDManager_commitDeferredReport("IR Cool Panel");
+    // HIDManager_commitDeferredReport("IR Cool Panel");
 
     debugPrintf("✅ Initialized IR Cool Panel\n", IRCOOL_PCA_ADDR);
   } else {

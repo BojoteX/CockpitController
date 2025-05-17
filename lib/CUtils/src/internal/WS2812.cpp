@@ -18,6 +18,10 @@ void WS2812_init() {
 }
 
 void WS2812_setLEDColor(uint8_t ledIndex, CRGB color) {
+
+    // debugPrintf("[WS2812] ❌ Write / LED skipped. FORCED NOT PRESENT FOR DEBUG\n");
+    // return;
+
   if (ledIndex < NUM_LEDS) {
     leds[ledIndex] = color;
     FastLED.show();

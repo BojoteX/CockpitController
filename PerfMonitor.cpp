@@ -1,19 +1,17 @@
+// PerfMonitor.cpp
+
 #include "src/Globals.h"     
 
 #if DEBUG_PERFORMANCE
-#include "src/PsramConfig.h"
-#include <string> 
-#include <vector>
-#include <unordered_map>
-#include "src/PerfMonitor.h"
-#include "src/PsramConfig.h"  // Needed for PS_NEW()
+#if DEBUG_USE_WIFI
+#include "src/WiFiDebug.h"
+#endif // DEBUG_USE_WIFI
+
+// Check the enum in PerfMonitor.h
+
+ProfAccum perfTable[PERF_LABEL_COUNT];
 
 #define PERFORMANCE_SNAPSHOT_INTERVAL_MS (PERFORMANCE_SNAPSHOT_INTERVAL_SECONDS * 1000UL)
-
-// ——— Profiling state ———
-struct ProfAccum { uint64_t sumUs = 0; uint32_t cnt = 0; };
-static std::unordered_map<std::string, unsigned long>* _startTimes = nullptr;
-static std::unordered_map<std::string, ProfAccum>*     _accumulators = nullptr;
 
 // ——— Monitoring state ———
 static unsigned long _lastReportMs = 0;
@@ -24,9 +22,8 @@ static uint64_t       _busyUsAccum = 0;
 static bool _alertShown = false;
 
 // === Helpers ===
-
 inline void perfDebugPrint(const char* msg) {
-#if VERBOSE_PERFORMANCE_ONLY
+#if VERBOSE_PERFORMANCE_ONLY && DEBUG_USE_WIFI
     wifiDebugPrint(msg);
 #else
     debugPrint(msg);
@@ -34,7 +31,7 @@ inline void perfDebugPrint(const char* msg) {
 }
 
 inline void perfDebugPrintln(const char* msg) {
-#if VERBOSE_PERFORMANCE_ONLY
+#if VERBOSE_PERFORMANCE_ONLY && DEBUG_USE_WIFI
     wifiDebugPrintln(msg);
 #else
     debugPrintln(msg);
@@ -47,7 +44,7 @@ inline void perfDebugPrintf(const char* format, ...) {
     va_start(args, format);
     vsnprintf(buf, sizeof(buf), format, args);
     va_end(args);
-#if VERBOSE_PERFORMANCE_ONLY
+#if VERBOSE_PERFORMANCE_ONLY && DEBUG_USE_WIFI
     wifiDebugPrint(buf);
 #else
     debugPrint(buf);
@@ -98,11 +95,7 @@ static const char* _resetReasonToString(esp_reset_reason_t r) {
 }
 
 // === API ===
-
 void initPerfMonitor() {
-    _startTimes = ps_new<std::unordered_map<std::string, unsigned long>>();
-    _accumulators = ps_new<std::unordered_map<std::string, ProfAccum>>();
-
     if (!_alertShown) {
         _alertShown = true;
         auto reason = esp_reset_reason();
@@ -129,19 +122,14 @@ void initPerfMonitor() {
     _lastLoopUs   = micros();
 }
 
-void beginProfiling(const char* label) {
-    if (_startTimes) (*_startTimes)[label] = micros();
+void beginProfiling(PerfLabel label) {
+    perfTable[label].startUs = micros();
 }
 
-void endProfiling(const char* label) {
-    if (!_startTimes || !_accumulators) return;
-    auto it = _startTimes->find(label);
-    if (it == _startTimes->end()) return;
-    uint32_t elapsed = micros() - it->second;
-    _startTimes->erase(it);
-    auto &a = (*_accumulators)[label];
-    a.sumUs += elapsed;
-    a.cnt   += 1;
+void endProfiling(PerfLabel label) {
+    uint32_t elapsed = micros() - perfTable[label].startUs;
+    perfTable[label].sumUs += elapsed;
+    perfTable[label].cnt   += 1;
 }
 
 void perfMonitorUpdate() {
@@ -152,40 +140,31 @@ void perfMonitorUpdate() {
     perfDebugPrintln("+-------------------- PERFORMANCE SNAPSHOT ----------------------+");
     perfDebugPrintln("🔍  Profiling Averages:");
 
-    struct LabelAvg { std::string label; float avgMs; };
-    std::vector<LabelAvg> avgs;
-    avgs.reserve(_accumulators ? _accumulators->size() : 0);
+    float mainLoopAvgMs = 0.0f;
+    float totalLoadMs = 0.0f;
 
-    if (_accumulators) {
-        for (auto& kv : *_accumulators) {
-            const auto& label = kv.first;
-            const auto& a     = kv.second;
-            float avgUs       = a.cnt ? (a.sumUs / static_cast<float>(a.cnt)) : 0.0f;
-            avgs.push_back({ label, avgUs / 1000.0f });
-        }
-        _accumulators->clear();
+    for (int i = 0; i < PERF_LABEL_COUNT; ++i) {
+        const auto& a = perfTable[i];
+        float avgMs = a.cnt ? (a.sumUs / (float)a.cnt) / 1000.0f : 0.0f;
+        perfDebugPrintf("    ∘ %-15s : %6.2f ms\n", perfLabelNames[i], avgMs);
+        if (perfIncludedInLoad[i]) totalLoadMs += avgMs;
+        if (i == PERF_MAIN_LOOP) mainLoopAvgMs = avgMs;
     }
 
-    for (auto& e : avgs) {
-        perfDebugPrintf("    ∘ %-15s : %6.2f ms\n", e.label.c_str(), e.avgMs);
+    for (int i = 0; i < PERF_LABEL_COUNT; ++i) {
+    perfTable[i].sumUs = 0;
+    perfTable[i].cnt = 0;
     }
 
     perfDebugPrintln("+----------------------------------------------------------------+");
     perfDebugPrintln("🕑  System Status:");
 
     constexpr float frameMs = 1000.0f / POLLING_RATE_HZ;
-    float mainLoopAvgMs = 0.0f;
-    for (auto& e : avgs) {
-        if (e.label == "Main Loop") {
-            mainLoopAvgMs = e.avgMs;
-            break;
-        }
-    }
 
-    float pollLoadPct = (mainLoopAvgMs / frameMs) * 100.0f;
-    float headroomMs  = frameMs - mainLoopAvgMs;
+    float pollLoadPct = (totalLoadMs / frameMs) * 100.0f;
+    float headroomMs  = frameMs - totalLoadMs;
     float headroomPct = 100.0f - pollLoadPct;
-    float scaleFactor = mainLoopAvgMs > 0.0f ? (frameMs / mainLoopAvgMs) : 0.0f;
+    float scaleFactor = totalLoadMs > 0.0f ? (frameMs / totalLoadMs) : 0.0f;
     uint64_t uptimeSec = esp_timer_get_time() / 1000000ULL;
     uint32_t mins = uptimeSec / 60;
     uint32_t secs = uptimeSec % 60;
@@ -223,8 +202,8 @@ void perfMonitorUpdate() {
 
     perfDebugPrintln("+----------------------------------------------------------------+");
 
-    int txAvail   = Serial.availableForWrite();
     int rxWaiting = Serial.available();
+    int txAvail   = tud_cdc_write_available();  // NOT Serial.availableForWrite()
 
     perfDebugPrintln("📡  USB-CDC Buffer Health:");
     perfDebugPrintf("    ∘ TX Free Slots : %6d bytes\n", txAvail);

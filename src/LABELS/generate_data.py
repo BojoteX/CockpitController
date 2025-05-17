@@ -21,7 +21,7 @@ KNOWN_DEVICES 	= {
 
 # PROCESS_ALL Should ALMOST NEVER be set to True. If you do, it will map every LED, GAUGE and CONTROL. Use it for PERFORMANCE TESTING
 # Ideally, what you do is set PROCESS_ALL to False and select your specific panels in target_objects instead 
-PROCESS_ALL = True
+PROCESS_ALL = False
 
 # Panels to include when PROCESS_ALL is False. 
 target_objects = {

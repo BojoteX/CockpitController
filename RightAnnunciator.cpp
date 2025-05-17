@@ -1,9 +1,10 @@
-// RIGHTAnnunciator.cpp
+// RightAnnunciator.cpp
 // Implementation for RIGHT annunciator button panel integration
 
 #include "src/Globals.h"
 #include "src/HIDManager.h"
 #include "src/DCSBIOSBridge.h"
+#include "src/RightAnnunciator.h"
 
 // Initialization routine for RIGHT annunciator buttons
 void RightAnnunciator_init() {
@@ -21,7 +22,7 @@ void RightAnnunciator_init() {
         HIDManager_setToggleNamedButton("APU_FIRE_BTN", true); // deferSend = true
     }
 
-    HIDManager_commitDeferredReport("Right Annunciator");
+    // HIDManager_commitDeferredReport("Right Annunciator");
 
     debugPrintln("✅ RIGHT Annunciator initialized for buttons");
 }

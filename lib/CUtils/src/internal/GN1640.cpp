@@ -70,6 +70,10 @@ void GN1640_init(uint8_t clkPin, uint8_t dioPin) {
 }
 
 void GN1640_setLED(uint8_t row, uint8_t col, bool state) {
+
+  // debugPrintf("[GN1640] ❌ Write / LED skipped. FORCED NOT PRESENT FOR DEBUG\n");
+  // return;
+
   if (row > 7 || col > 7) return;
 
   uint8_t bit = (1 << col);

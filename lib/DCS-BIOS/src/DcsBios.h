@@ -118,22 +118,34 @@ do not come with their own build system, we are just putting everything into the
 	}
 #endif
 #ifdef DCSBIOS_ESP32_CDC_SERIAL
-	#include <tusb.h>
 	namespace DcsBios {
 		ProtocolParser parser;
 		void setup() {
 			// Serial.begin(250000);
 		}
 		void loop() {
+
 			while (Serial.available()) {
 				parser.processChar(Serial.read());
 			}
+
 			PollingInput::pollInputs();
 			ExportStreamListener::loopAll();			
 		}
 		bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
+
 			// Estimate the total space needed
-  			size_t len = strlen(msg) + 1 + strlen(arg) + 1; // "CMD ARG\n"
+  			if (!msg || !arg) return false;
+
+  			constexpr size_t maxMsgLen = 64;
+  			constexpr size_t maxArgLen = 32;
+
+  			size_t msgLen = strnlen(msg, maxMsgLen);
+  			size_t argLen = strnlen(arg, maxArgLen);
+
+  			if (msgLen == maxMsgLen || argLen == maxArgLen) return false;
+
+  			size_t len = msgLen + 1 + argLen + 1; // "CMD ARG\n"
 
   			// Check buffer availability
   			if (tud_cdc_write_available() < len) {
@@ -141,15 +153,15 @@ do not come with their own build system, we are just putting everything into the
   			}
 
   			// Write parts manually
-  			tud_cdc_write_str(msg);
+  			tud_cdc_write(msg, msgLen);
   			tud_cdc_write_str(" ");
-  			tud_cdc_write_str(arg);
-  			tud_cdc_write_str("\n");
+  			tud_cdc_write(arg, argLen);
+  			tud_cdc_write_str("\r\n");
 
   			// Flush and re-check available space to confirm it drained
   			size_t before = tud_cdc_write_available();
   			tud_cdc_write_flush();
-  			yield();
+
   			size_t after = tud_cdc_write_available();
 
   			// If no new space freed, assume host is stalled
@@ -158,17 +170,6 @@ do not come with their own build system, we are just putting everything into the
   			DcsBios::PollingInput::setMessageSentOrQueued();
   			return true;
 		}
-
-/*
-		bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
-  			char buffer[64];
-  			snprintf(buffer, sizeof(buffer), "%s %s\n", msg, arg);
-  			tud_cdc_write(buffer, strlen(buffer));
-  			tud_cdc_write_flush();
-			DcsBios::PollingInput::setMessageSentOrQueued();
-			return true;
-		}
-*/
 		void resetAllStates() {
 			PollingInput::resetAllStates();
 		}
