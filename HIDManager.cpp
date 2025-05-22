@@ -45,7 +45,6 @@ extern "C" {
 static uint32_t lastHidSendUs = 0;
 static uint8_t lastSentReport[sizeof(report.raw)] = {0};
 static bool reportPending = false;
-static volatile bool hidTxReady = true;
 static_assert(sizeof(report.raw) == sizeof(lastSentReport), "Report size mismatch!");
 
 USBHID HID;
@@ -362,37 +361,16 @@ void onUsbResumed(void* arg, esp_event_base_t base, int32_t event_id, void* data
 
 void setupHIDEvents() {
     // Subscribe individually
-    HID.onEvent(ARDUINO_USB_HID_SET_PROTOCOL_EVENT, hidSetProtocolHandler);
-    HID.onEvent(ARDUINO_USB_HID_SET_IDLE_EVENT,     hidSetIdleHandler);
+    // HID.onEvent(ARDUINO_USB_HID_SET_PROTOCOL_EVENT, hidSetProtocolHandler);
+    // HID.onEvent(ARDUINO_USB_HID_SET_IDLE_EVENT,     hidSetIdleHandler);
 }
 
 void setupUSBEvents() {
-    USB.onEvent(ARDUINO_USB_STARTED_EVENT, onUsbStarted);
-    USB.onEvent(ARDUINO_USB_STOPPED_EVENT, onUsbStopped);
-    USB.onEvent(ARDUINO_USB_SUSPEND_EVENT, onUsbSuspended);
-    USB.onEvent(ARDUINO_USB_RESUME_EVENT, onUsbResumed);
+    // USB.onEvent(ARDUINO_USB_STARTED_EVENT, onUsbStarted);
+    // USB.onEvent(ARDUINO_USB_STOPPED_EVENT, onUsbStopped);
+    // USB.onEvent(ARDUINO_USB_SUSPEND_EVENT, onUsbSuspended);
+    // USB.onEvent(ARDUINO_USB_RESUME_EVENT, onUsbResumed);
 }
-
-/*
-// Also, should NOT be able to send reports IF we are in DCS-MODE
-inline static bool HID_can_send_report() {
-
-    // Skip is we are in DCS-MODE
-    if (isModeSelectorDCS()) return false;
-
-    // Skip if HID not ready..
-    if (!HID.ready()) return false;
-
-    if (!cdcEnsureRxReady(CDC_TIMEOUT_RX_TX)) {
-        debugPrintln("❌ Endpoint not ready");
-        yield();
-        return false;
-    }
-
-    // Allow sending report!
-    return true;
-}
-*/
 
 inline static bool HID_can_send_report() {
 
@@ -401,22 +379,18 @@ inline static bool HID_can_send_report() {
 
     // HID endpoint must be idle
     if (!tud_hid_ready()) return false;
+    // if (!HID.ready()) return false;
 
     // CDC RX must have shown recent activity (proves USB is being polled)
-    if (!cdcEnsureRxReady(1000)) { // Wait 100 ms for RX to be ready
+    if (!cdcEnsureRxReady(CDC_TIMEOUT_RX_TX)) { // Wait for RX to be ready
         // debugPrintln("❌ HID block: Stream is not currently active");
         return false;
     }
 
-    // Check pending RX bytes
-    int rxWaiting = Serial.available();
-
-    // Print once per second
-    static uint32_t lastPrintMs = 0;
-    uint32_t now = millis();
-    if (now - lastPrintMs >= 1000) {
-        // debugPrintf("📥 Serial.available() = %d\n", rxWaiting);
-        lastPrintMs = now;
+    // CDC TX must have available space 
+    if (!cdcEnsureTxReady(CDC_TIMEOUT_RX_TX)) { // Wait for TX to be ready
+        // debugPrintln("❌ HID block: Tx not ready");
+        return false;
     }
 
     return true;  // ✅ All conditions met — safe to send HID
@@ -433,28 +407,21 @@ void HIDManager_dispatchReport(bool force) {
     // Attempt to send report
     if (!HID_can_send_report()) return;
 
-    // Claim TX line
-    hidTxReady = false;
-
     #if DEBUG_PERFORMANCE
     beginProfiling(PERF_HIDREPORTS);
     #endif
 
     // bool success = HID.SendReport(0, report.raw, sizeof(report.raw), HID_SENDREPORT_TIMEOUT);
     // bool success = HID.SendReport(0, report.raw, sizeof(report.raw));
-
     bool success = tud_hid_report(0, report.raw, sizeof(report.raw));
-    if (!success) {
-        debugPrintln("❌ Report failed");
-    }
+    // delay(HID_SENDREPORT_TIMEOUT);
 
     #if DEBUG_PERFORMANCE
     endProfiling(PERF_HIDREPORTS);
     #endif
 
-    yield();
-    if (!(hidTxReady = success)) {
-        yield();
+    if (!success) {
+        debugPrintln("❌ Report failed");
         return;
     }
 
@@ -626,8 +593,8 @@ void HIDManager_setup() {
     // Register Device (just before calling USB.begin) but only if we are in HID mode
     #if !defined(ARDUINO_USB_CDC_ON_BOOT) || (ARDUINO_USB_CDC_ON_BOOT == 0)
     if (!isModeSelectorDCS()) {
-        setupHIDEvents();
         HID.addDevice(&gamepad, sizeof(hidReportDesc));
+        setupHIDEvents();
     }
     #endif
 

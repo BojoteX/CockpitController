@@ -53,23 +53,28 @@ else:
 print("⏳ Press Ctrl+C to stop.\n")
 
 # === REPLAY LOOP ===
-while True:
-    start_time = time.time()
-    first = True
+# Precompute absolute time offsets from start of stream
+frame_timestamps = []
+accum_time = 0.0
+for frame in frames:
+    frame_timestamps.append(accum_time)
+    accum_time += frame.get("timing", 0) / args.speed if not args.fps else (1.0 / args.fps)
 
-    for frame in frames:
-        delay = frame.get("timing", 0)
+# Start absolute timer
+stream_start_time = time.perf_counter()
+cycle = 0
+
+while True:
+    for i, frame in enumerate(frames):
         hex_data = frame.get("data", "")
         if not hex_data:
             continue
 
-        # Frame timing
-        if not first:
-            if args.fps:
-                time.sleep(1.0 / args.fps)
-            else:
-                time.sleep(delay / args.speed)
-        first = False
+        target_time = stream_start_time + frame_timestamps[i] + (cycle * accum_time)
+        now = time.perf_counter()
+        wait_time = target_time - now
+        if wait_time > 0:
+            time.sleep(wait_time)
 
         try:
             binary_data = binascii.unhexlify(hex_data)
@@ -77,7 +82,7 @@ while True:
         except Exception as e:
             print(f"⚠️ Error sending frame: {e}")
 
-    elapsed = time.time() - start_time
-    print(f"✅ Completed 1 cycle in {elapsed:.2f}s")
+    cycle += 1
+    print(f"✅ Completed cycle {cycle}")
 
 sock.close()

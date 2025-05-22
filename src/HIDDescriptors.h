@@ -1,8 +1,6 @@
 #pragma once
 
-// #include "../Config.h"
 #include <USBHID.h>
-// #include <string.h>
 
 // HID report descriptor: 1 axis (Rx), 32 buttons, padded to 8 bytes
 static const uint8_t hidReportDesc[] = {

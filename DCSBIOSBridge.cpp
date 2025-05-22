@@ -469,6 +469,8 @@ static void cdcRxHandler(void* arg,
                          void* event_data)
 {
     cdcRxReady = true;
+    HIDManager_dispatchReport(true); // This will only send at HID_REPORT_RATE_HZ
+    cdcRxReady = false;    
 }
 
 static void cdcTxHandler(void* arg,
@@ -490,10 +492,10 @@ static void cdcRxOvfHandler(void* arg,
 }
 
 void setupCDCEvents() {
-    Serial.onEvent(ARDUINO_USB_CDC_CONNECTED_EVENT, cdcConnectedHandler);
-    Serial.onEvent(ARDUINO_USB_CDC_DISCONNECTED_EVENT, cdcDisconnectedHandler);
-    Serial.onEvent(ARDUINO_USB_CDC_LINE_STATE_EVENT, cdcLineStateHandler);
-    Serial.onEvent(ARDUINO_USB_CDC_LINE_CODING_EVENT, cdcLineCodingHandler);       
+    // Serial.onEvent(ARDUINO_USB_CDC_CONNECTED_EVENT, cdcConnectedHandler);
+    // Serial.onEvent(ARDUINO_USB_CDC_DISCONNECTED_EVENT, cdcDisconnectedHandler);
+    // Serial.onEvent(ARDUINO_USB_CDC_LINE_STATE_EVENT, cdcLineStateHandler);
+    // Serial.onEvent(ARDUINO_USB_CDC_LINE_CODING_EVENT, cdcLineCodingHandler);       
     Serial.onEvent(ARDUINO_USB_CDC_RX_EVENT, cdcRxHandler);
     Serial.onEvent(ARDUINO_USB_CDC_TX_EVENT, cdcTxHandler);
     Serial.onEvent(ARDUINO_USB_CDC_RX_OVERFLOW_EVENT, cdcRxOvfHandler);    
@@ -603,14 +605,25 @@ void sendDCSBIOSCommand(const char* label, uint16_t value, bool force /*=false*/
 void DcsBiosTask(void* param) {
     const TickType_t interval = pdMS_TO_TICKS(1000 / DCS_UPDATE_RATE_HZ);  // e.g., 30Hz
     while (true) {
+
+        HIDManager_dispatchReport(true);
+
         #if DEBUG_PERFORMANCE
         beginProfiling(PERF_DCSBIOS);
         #endif
+
         cdcRxReady = false;
-        DcsBios::loop();    
+        while (Serial.available()) {
+            DcsBios::parser.processChar(Serial.read());
+        }
+
+        // DcsBios::PollingInput::pollInputs();
+        DcsBios::ExportStreamListener::loopAll();
+
         #if DEBUG_PERFORMANCE      
         endProfiling(PERF_DCSBIOS);
         #endif
+
         vTaskDelay(interval);
     }
 }
@@ -625,15 +638,38 @@ void DCSBIOSBridge_setup() {
     setupCDCEvents(); // Load CDC Events
     Serial.setRxBufferSize(SERIAL_RX_BUFFER_SIZE);
     Serial.setTxTimeoutMs(SERIAL_TX_TIMEOUT);  // To avoid CDC getting stuck when SOCAT starts acting up
+    // Serial.setTimeout(1); // New one.. test it
     // Serial.enableReboot(false); // Should be set to false for PRODUCTION, true for development
-    Serial.setDebugOutput(false);
-    Serial.begin(0);
+    // Serial.setDebugOutput(false);
+    Serial.begin(250000);
 
-    // Initialize DCSBIOS 
-    DcsBios::setup();    
+    // Initialize DCSBIOS (Not needed as we already started serial above) 
+    // DcsBios::setup();    
 }
 
 void DCSBIOSBridge_loop() {
+
+    #if DEBUG_PERFORMANCE
+    beginProfiling(PERF_DCSBIOS);
+    #endif
+/*
+    while (Serial.available()) {
+        DcsBios::parser.processChar(Serial.read());
+    }
+*/
+
+    size_t avail = Serial.available();
+    size_t chunk = (avail < DCSBIOS_SERIAL_CHUNK_SIZE) ? avail : DCSBIOS_SERIAL_CHUNK_SIZE;
+    for (size_t i = 0; i < chunk; ++i) {
+        DcsBios::parser.processChar(Serial.read());
+    }
+
+    // DcsBios::PollingInput::pollInputs();
+    DcsBios::ExportStreamListener::loopAll();
+
+    #if DEBUG_PERFORMANCE      
+    endProfiling(PERF_DCSBIOS);
+    #endif
 
     // Optional
     if (isModeSelectorDCS()) DCSBIOS_keepAlive();  // Still called only when in DCS mode   

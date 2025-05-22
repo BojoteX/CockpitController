@@ -7,7 +7,13 @@
 #include "src/WiFiDebug.h"
 #endif // DEBUG_USE_WIFI
 
-// Check the enum in PerfMonitor.h
+/*
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_task_wdt.h"
+#include "esp_heap_caps.h"
+*/
 
 ProfAccum perfTable[PERF_LABEL_COUNT];
 
@@ -49,6 +55,48 @@ inline void perfDebugPrintf(const char* format, ...) {
 #else
     debugPrint(buf);
 #endif
+}
+
+void printTaskList() {
+    constexpr size_t MAX_TASKS = 32;
+    TaskStatus_t taskStatusArray[MAX_TASKS];
+    UBaseType_t taskCount = uxTaskGetSystemState(taskStatusArray, MAX_TASKS, nullptr);
+
+    debugPrintln("\r\n📋 Detailed FreeRTOS Task List:");
+    debugPrintln("---------------------------------------------------------------------------------------");
+    debugPrintln("Name              State   Prio  Core  StackFree  Handle     ID");
+    debugPrintln("---------------------------------------------------------------------------------------");
+
+    for (UBaseType_t i = 0; i < taskCount; ++i) {
+        const TaskStatus_t& t = taskStatusArray[i];
+
+        const char* stateStr = "UNKNOWN";
+        switch (t.eCurrentState) {
+            case eRunning:   stateStr = "RUN";   break;
+            case eReady:     stateStr = "READY"; break;
+            case eBlocked:   stateStr = "BLOCK"; break;
+            case eSuspended: stateStr = "SUSP";  break;
+            case eDeleted:   stateStr = "DEL";   break;
+            default: break;
+        }
+
+        char line[256];
+        snprintf(line, sizeof(line),
+            "%-17s %-6s %5u    %1d    %7u  0x%08X  %2u",
+            t.pcTaskName,
+            stateStr,
+            (unsigned)t.uxCurrentPriority,
+            (int)t.xCoreID,
+            (unsigned)t.usStackHighWaterMark * sizeof(StackType_t),
+            (unsigned int)(uintptr_t)t.xHandle,
+            (unsigned)t.xTaskNumber
+        );
+        debugPrintln(line);
+    }
+
+    debugPrintln("---------------------------------------------------------------------------------------");
+    debugPrintf("[USB] CONFIG_TINYUSB_CDC_RX_BUFSIZE = %d\r\n", CONFIG_TINYUSB_CDC_RX_BUFSIZE);
+
 }
 
 void logHeapStatus(const char* label) {
@@ -210,5 +258,6 @@ void perfMonitorUpdate() {
     perfDebugPrintf("    ∘ RX Pending    : %6d bytes\n", rxWaiting);
 
     perfDebugPrintln("+----------------------------------------------------------------+");
+    printTaskList();
 }
 #endif // DEBUG_PERFORMANCE

@@ -57,6 +57,7 @@ void initPerfMonitor();
 void beginProfiling(PerfLabel label);
 void endProfiling(PerfLabel label);
 void perfMonitorUpdate();
+void printTaskList();
 
 // static_assert(PERF_LABEL_COUNT == sizeof(perfLabelNames) / sizeof(perfLabelNames[0]), "perfLabelNames size mismatch");
 // static_assert(PERF_LABEL_COUNT == sizeof(perfIncludedInLoad) / sizeof(perfIncludedInLoad[0]), "perfIncludedInLoad size mismatch");

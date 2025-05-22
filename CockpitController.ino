@@ -223,11 +223,13 @@ void setup() {
     #endif   
   
     // Create tasks
-    xTaskCreatePinnedToCore(DcsBiosTask, "DCSBIOS", 4096, NULL, 4, NULL, 0);  
+    // xTaskCreatePinnedToCore(DcsBiosTask, "DCSBIOS", 4096, NULL, 1, NULL, 0);  
+    /*
     if (!isModeSelectorDCS()) {
         vTaskDelay(pdMS_TO_TICKS(50));  // 50ms cushion before HID starts
-        xTaskCreatePinnedToCore(HIDSenderTask, "HIDReportTx", 4096, NULL, 2, NULL, 0);   
+        xTaskCreatePinnedToCore(HIDSenderTask, "HIDReportTx", 4096, NULL, 4, NULL, 0);   
     }
+    */
 }
 
 void loop() {
@@ -282,4 +284,6 @@ void loop() {
     #if DEBUG_PERFORMANCE
     perfMonitorUpdate();
     #endif   
+
+    yield();
 }

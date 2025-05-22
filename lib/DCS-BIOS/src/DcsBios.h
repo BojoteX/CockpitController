@@ -124,13 +124,15 @@ do not come with their own build system, we are just putting everything into the
 			// Serial.begin(250000);
 		}
 		void loop() {
-
+			/*
 			while (Serial.available()) {
 				parser.processChar(Serial.read());
+				yield();  // let TinyUSB handle pending HID/CDC event
 			}
 
 			PollingInput::pollInputs();
 			ExportStreamListener::loopAll();			
+			*/
 		}
 		bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
 
@@ -161,13 +163,14 @@ do not come with their own build system, we are just putting everything into the
   			// Flush and re-check available space to confirm it drained
   			size_t before = tud_cdc_write_available();
   			tud_cdc_write_flush();
+			yield();
 
   			size_t after = tud_cdc_write_available();
 
   			// If no new space freed, assume host is stalled
   			if (after <= before) return false;
 
-  			DcsBios::PollingInput::setMessageSentOrQueued();
+  			// DcsBios::PollingInput::setMessageSentOrQueued();
   			return true;
 		}
 		void resetAllStates() {
