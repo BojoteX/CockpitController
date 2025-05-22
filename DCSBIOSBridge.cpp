@@ -470,7 +470,7 @@ static void cdcRxHandler(void* arg,
 {
     cdcRxReady = true;
     HIDManager_dispatchReport(true); // This will only send at HID_REPORT_RATE_HZ
-    cdcRxReady = false;    
+    cdcRxReady = false;        
 }
 
 static void cdcTxHandler(void* arg,
@@ -665,7 +665,7 @@ void DCSBIOSBridge_loop() {
     }
 
     // DcsBios::PollingInput::pollInputs();
-    DcsBios::ExportStreamListener::loopAll();
+    // DcsBios::ExportStreamListener::loopAll();
 
     #if DEBUG_PERFORMANCE      
     endProfiling(PERF_DCSBIOS);

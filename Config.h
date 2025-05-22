@@ -39,7 +39,7 @@
 #define SERIAL_RX_BUFFER_SIZE                     4096              // in bytes             
 #define SERIAL_TX_TIMEOUT                         8                 // in ms 
 #define CDC_TIMEOUT_RX_TX                         8                 // in ms
-#define HID_SENDREPORT_TIMEOUT                    8                 // in ms (Only used with ESP32 Arduino Core HID.SendReport implementation)
+#define HID_SENDREPORT_TIMEOUT                    0                 // in ms (Only used with ESP32 Arduino Core HID.SendReport implementation)
 #define DCSBIOS_SERIAL_CHUNK_SIZE                 64                // How many max bytes on each loop pass
 
 // Does the device have a HID/DCS Mode selector? if so set HAS_HID_MODE_SELECTOR to 1 and PIN GPIO, otherwise HAS_HID_MODE_SELECTOR 0  

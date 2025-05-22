@@ -138,7 +138,7 @@ void flushBufferedHidCommands() {
             report.buttons |= (1UL << (m->hidId - 1));
         }
 
-        HIDManager_dispatchReport(false);
+        // HIDManager_dispatchReport(false);
 
         // Finalize
         winner->lastValue = winner->pendingValue;
@@ -146,7 +146,7 @@ void flushBufferedHidCommands() {
         winner->hasPending = false;
         debugPrintf("🛩️ [HID] GROUP %u FLUSHED: %s = %u\n", g, winner->label, winner->lastValue);
     }
-    if (reportPending) HIDManager_dispatchReport();
+    // if (reportPending) HIDManager_dispatchReport();
 }
 
 // Replace your current HIDManager_sendReport(...) with this:
@@ -197,7 +197,7 @@ void HIDManager_sendReport(const char* label, int32_t rawValue) {
     else
         report.buttons &= ~mask;
 
-    HIDManager_dispatchReport(false);
+    // HIDManager_dispatchReport(false);
 
     // update history
     e->lastValue    = dcsValue;
@@ -281,7 +281,7 @@ void HIDManager_moveAxis(const char* dcsIdentifier,
         auto* e = findCmdEntry(dcsIdentifier);
         if (e && applyThrottle(*e, dcsIdentifier, dcsValue, /*force=*/false)) {
             // send the raw HID report
-            HIDManager_dispatchReport(false);
+            // HIDManager_dispatchReport(false);
 
             // update shared history
             e->lastValue    = dcsValue;
@@ -299,7 +299,7 @@ void HIDManager_commitDeferredReport(const char* deviceName) {
     if (isModeSelectorDCS()) return;
 
     // 2) Send the raw 64-byte gamepad report
-    HIDManager_dispatchReport(false);
+    // HIDManager_dispatchReport(false);
 
     // 3) (Optional) Debug
     debugPrintf("🛩️ [HID] Deferred report sent for: \"%s\"\n", deviceName);
@@ -378,9 +378,10 @@ inline static bool HID_can_send_report() {
     if (isModeSelectorDCS()) return false;
 
     // HID endpoint must be idle
-    if (!tud_hid_ready()) return false;
-    // if (!HID.ready()) return false;
+    // if (!tud_hid_ready()) return false;
+    if (!HID.ready()) return false;
 
+/*
     // CDC RX must have shown recent activity (proves USB is being polled)
     if (!cdcEnsureRxReady(CDC_TIMEOUT_RX_TX)) { // Wait for RX to be ready
         // debugPrintln("❌ HID block: Stream is not currently active");
@@ -392,6 +393,7 @@ inline static bool HID_can_send_report() {
         // debugPrintln("❌ HID block: Tx not ready");
         return false;
     }
+*/
 
     return true;  // ✅ All conditions met — safe to send HID
 }
@@ -411,19 +413,21 @@ void HIDManager_dispatchReport(bool force) {
     beginProfiling(PERF_HIDREPORTS);
     #endif
 
-    // bool success = HID.SendReport(0, report.raw, sizeof(report.raw), HID_SENDREPORT_TIMEOUT);
+    bool success = HID.SendReport(0, report.raw, sizeof(report.raw), HID_SENDREPORT_TIMEOUT);
     // bool success = HID.SendReport(0, report.raw, sizeof(report.raw));
-    bool success = tud_hid_report(0, report.raw, sizeof(report.raw));
+    // bool success = tud_hid_report(0, report.raw, sizeof(report.raw));
     // delay(HID_SENDREPORT_TIMEOUT);
 
     #if DEBUG_PERFORMANCE
     endProfiling(PERF_HIDREPORTS);
     #endif
 
+/*
     if (!success) {
         debugPrintln("❌ Report failed");
         return;
     }
+*/
 
     // Mark success
     memcpy(lastSentReport, report.raw, sizeof(report.raw));
@@ -433,8 +437,8 @@ void HIDManager_dispatchReport(bool force) {
 void HIDSenderTask(void* param) {
     constexpr TickType_t interval = pdMS_TO_TICKS(1000 / HID_REPORT_RATE_HZ);
     while (true) {
-        HIDManager_dispatchReport(true);  // Use internal gating logic
-        vTaskDelay(interval);
+        // HIDManager_dispatchReport(true);  // Use internal gating logic
+        // vTaskDelay(interval);
     }
 }
 
